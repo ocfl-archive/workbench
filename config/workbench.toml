@@ -1,0 +1,6 @@
+input =  "C:/temp/zhbluzern/raphael_upload"
+ocfl = "C:/temp/zhbluzern/ocfl"
+report = "C:/temp/zhbluzern/report"
+
+[gocfl]
+config = "c:/daten/go/dev/gocfl-cli/config/gocfl2.toml"
