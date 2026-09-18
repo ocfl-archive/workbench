@@ -10,19 +10,24 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/rs/zerolog"
 )
 
-// createOCFL displays a modal execution dialog and runs the background process
-// to build the OCFL container for the selected job, streaming process output in real-time.
-func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, job Job, onFinish func()) {
-	// Create the scrollable text view to display process stdout/stderr
+// runCommandInModal encapsulates modal dialog creation and process output streaming.
+func runCommandInModal(
+	app *tview.Application,
+	pages *tview.Pages,
+	title string,
+	startMsg string,
+	cmd *exec.Cmd,
+	onFinish func(),
+) {
 	modalText := tview.NewTextView().
 		SetDynamicColors(true).
 		SetScrollable(true).
 		SetWordWrap(true)
-	modalText.SetBorder(true).SetTitle(fmt.Sprintf(" OCFL Erstellung: %s ", job.signature))
+	modalText.SetBorder(true).SetTitle(title)
 
-	// Construct a centered layout for the modal dialog box
 	modalBox := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(nil, 0, 1, false).
@@ -35,18 +40,8 @@ func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, job 
 	pages.AddPage("execModal", modalBox, true, true)
 	app.SetFocus(modalText)
 
-	// Run external command in a background goroutine to avoid blocking the TUI event loop
 	go func() {
-		fmt.Fprintf(tview.ANSIWriter(modalText), "[yellow]Starte OCFL-Erstellung für %s...[white]\n\n", job.signature)
-
-		cmd := exec.Command("gocfl",
-			"create",
-			filepath.Join(conf.Ocfl, fmt.Sprintf("%s.zip", strings.TrimSuffix(filepath.Base(job.infoFile), ".json"))),
-			job.dataFolder,
-			fmt.Sprintf("metadata:%s", job.metadataFolder),
-			"-i", job.signature,
-			"--ext-NNNN-metafile-source", job.infoFile)
-
+		fmt.Fprintf(tview.ANSIWriter(modalText), "%s\n\n", startMsg)
 		fmt.Fprintln(tview.ANSIWriter(modalText), strings.Join(cmd.Args, " "))
 
 		stdout, _ := cmd.StdoutPipe()
@@ -57,7 +52,6 @@ func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, job 
 				fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Fehler beim Starten des Prozesses: %v[white]\n", err)
 			})
 		} else {
-			// Stream combined stdout and stderr lines into the modal view
 			multiReader := io.MultiReader(stdout, stderr)
 			scanner := bufio.NewScanner(multiReader)
 			for scanner.Scan() {
@@ -70,9 +64,8 @@ func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, job 
 			_ = cmd.Wait()
 		}
 
-		// Prompt user upon process completion and configure key capture to dismiss the modal
 		app.QueueUpdateDraw(func() {
-			fmt.Fprintf(tview.ANSIWriter(modalText), "\n[green]Prozess beendet. Drücken Sie [yellow]ESC[green], [yellow]ENTER[green] oder [yellow]q[green] zum Schließen...[white]\n")
+			fmt.Fprintf(tview.ANSIWriter(modalText), "\n[green]Prozess beendet. Drücken Sie [yellow]ESC[green] oder [yellow]ENTER[green] zum Schließen...[white]\n")
 			modalText.ScrollToEnd()
 
 			modalText.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -83,14 +76,6 @@ func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, job 
 						onFinish()
 					}
 					return nil
-				case tcell.KeyRune:
-					if event.Rune() == 'q' || event.Rune() == 'Q' {
-						pages.RemovePage("execModal")
-						if onFinish != nil {
-							onFinish()
-						}
-						return nil
-					}
 				}
 				return event
 			})
@@ -98,7 +83,47 @@ func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, job 
 	}()
 }
 
-// createReport is a placeholder for generating the PDF report for the selected job.
-func createReport(app *tview.Application, pages *tview.Pages, conf *WBConfig, job Job, onFinish func()) {
+// createOCFL displays a modal execution dialog and runs the background process
+// to build the OCFL container for the selected job, streaming process output in real-time.
+func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, logger zerolog.Logger, job Job, onFinish func()) {
+	zipName := fmt.Sprintf("%s.zip", strings.TrimSuffix(filepath.Base(job.infoFile), ".json"))
+	cmd := exec.Command("gocfl",
+		"create",
+		filepath.Join(conf.Ocfl, zipName),
+		job.dataFolder,
+		fmt.Sprintf("metadata:%s", job.metadataFolder),
+		"-i", job.signature,
+		"--ext-NNNN-metafile-source", job.infoFile,
+	)
 
+	title := fmt.Sprintf(" OCFL Erstellung: %s ", job.signature)
+	startMsg := fmt.Sprintf("[yellow]Starte OCFL-Erstellung für %s...[white]", job.signature)
+
+	runCommandInModal(app, pages, title, startMsg, cmd, onFinish)
+}
+
+// createReport generates the PDF report for the selected job.
+func createReport(app *tview.Application, pages *tview.Pages, conf *WBConfig, logger zerolog.Logger, job Job, onFinish func()) {
+	port, err := GetFreePort()
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get free network port")
+		return
+	}
+
+	zipName := fmt.Sprintf("%s.zip", strings.TrimSuffix(filepath.Base(job.infoFile), ".json"))
+	pdfName := fmt.Sprintf("%s.pdf", strings.TrimSuffix(filepath.Base(job.infoFile), ".json"))
+
+	cmd := exec.Command("gocfl",
+		"display",
+		filepath.Join(conf.Ocfl, zipName),
+		"--display-fullreport", filepath.Join(conf.Report, pdfName),
+		"--display-id", job.signature,
+		"-a", fmt.Sprintf("localhost:%d", port),
+		"-e", fmt.Sprintf("http://localhost:%d", port),
+	)
+
+	title := fmt.Sprintf(" Report Erstellung: %s ", job.signature)
+	startMsg := fmt.Sprintf("[yellow]Starte OCFL-Report-Erstellung für %s...[white]", job.signature)
+
+	runCommandInModal(app, pages, title, startMsg, cmd, onFinish)
 }

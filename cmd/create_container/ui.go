@@ -86,7 +86,7 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		if job.ocflFile == "" {
 			// OCFL archive is missing: provide button to create OCFL container
 			btn := tview.NewButton("OCFL erstellen").SetSelectedFunc(func() {
-				createOCFL(app, pages, conf, job, func() {
+				createOCFL(app, pages, conf, logger, job, func() {
 					if refreshCurrentBatch != nil {
 						refreshCurrentBatch()
 					}
@@ -100,7 +100,7 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		} else if job.reportFile == "" {
 			// OCFL archive exists but PDF report is missing: provide button to create report
 			btn := tview.NewButton("Report erstellen").SetSelectedFunc(func() {
-				createReport(app, pages, conf, job, func() {
+				createReport(app, pages, conf, logger, job, func() {
 					if refreshCurrentBatch != nil {
 						refreshCurrentBatch()
 					}
@@ -211,18 +211,17 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		return f == detailView || (actionButton != nil && f == actionButton)
 	}
 
-	// Global key interceptor for seamless Tab, Shift-Tab, and Arrow key navigation across panels
+	// Global key interceptor for seamless Tab, Shift-Tab, and Arrow key navigation across panels, and Ctrl+Q/Ctrl+C to quit
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if pages.HasPage("execModal") {
 			return event
 		}
 
-		if event.Rune() == 'q' || event.Rune() == 'Q' {
+		switch event.Key() {
+		case tcell.KeyCtrlQ, tcell.KeyCtrlC:
 			app.Stop()
 			return nil
-		}
 
-		switch event.Key() {
 		case tcell.KeyTab:
 			if app.GetFocus() == batchList {
 				app.SetFocus(jobList)
@@ -265,17 +264,23 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		return event
 	})
 
+	// Footer bar displaying shortcut hints
+	footerView := tview.NewTextView().
+		SetDynamicColors(true).
+		SetText(" [yellow]Tab/Pfeiltasten[white]: Navigieren  |  [yellow]Ctrl+Q[white]: Beenden")
+
 	// Log viewer pane at the bottom
 	logView := tview.NewTextView().
 		SetDynamicColors(true).
 		SetScrollable(true)
 	logView.SetBorder(true).SetTitle("Logs")
 
-	// Main split layout: Upper panels on top, Logs panel at the bottom
+	// Main split layout: Upper panels on top, Logs panel in the middle, Footer bar at the bottom
 	mainFlex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(upperFlex, 0, 2, true).
-		AddItem(logView, 0, 1, false)
+		AddItem(logView, 0, 1, false).
+		AddItem(footerView, 1, 0, false)
 
 	pages.AddPage("main", mainFlex, true, true)
 
