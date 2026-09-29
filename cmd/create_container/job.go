@@ -73,7 +73,7 @@ func getSignatures(inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job,
 		} else if _, err := os.Stat(siblingInfoPath); err == nil {
 			infoFilePath = siblingInfoPath
 		} else {
-			logger.Warn().Msgf("No metadata JSON found for folder %s - skipping", path.Join(inputF, base))
+			logger.Warn().Msgf("No metadata JSON found for folder '%s' - skipping in '%s' and '%s'", path.Join(inputF, base), folderInfoPath, siblingInfoPath)
 			continue
 		}
 
