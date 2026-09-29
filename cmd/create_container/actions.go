@@ -86,7 +86,7 @@ func runCommandInModal(
 // createOCFL displays a modal execution dialog and runs the background process
 // to build the OCFL container for the selected job, streaming process output in real-time.
 func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, logger zerolog.Logger, job Job, onFinish func()) {
-	zipName := fmt.Sprintf("%s.zip", strings.TrimSuffix(filepath.Base(job.infoFile), ".json"))
+	zipName := fmt.Sprintf("%s.zip", job.baseName)
 	cmd := exec.Command("gocfl",
 		"create",
 		filepath.Join(conf.Ocfl, zipName),
@@ -110,8 +110,8 @@ func createReport(app *tview.Application, pages *tview.Pages, conf *WBConfig, lo
 		return
 	}
 
-	zipName := fmt.Sprintf("%s.zip", strings.TrimSuffix(filepath.Base(job.infoFile), ".json"))
-	pdfName := fmt.Sprintf("%s.pdf", strings.TrimSuffix(filepath.Base(job.infoFile), ".json"))
+	zipName := fmt.Sprintf("%s.zip", job.baseName)
+	pdfName := fmt.Sprintf("%s.pdf", job.baseName)
 
 	cmd := exec.Command("gocfl",
 		"display",

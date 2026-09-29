@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path"
-	"slices"
 
 	"emperror.dev/errors"
 	"github.com/rs/zerolog"
@@ -12,6 +11,7 @@ import (
 
 // Job represents a container packaging task along with the status of its associated input files and generated artifacts.
 type Job struct {
+	baseName       string // Base identifier / folder name of the job.
 	infoFile       string // Path to the JSON file containing signature and title metadata.
 	dataFolder     string // Path to the folder containing data payload files, if present.
 	metadataFolder string // Path to the folder containing metadata files, if present.
@@ -53,42 +53,45 @@ func getSignatures(inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job,
 	}
 	var result = make([]Job, 0)
 	var folders = make([]string, 0)
-	var jsons = make([]string, 0)
 
-	// Classify directory entries into subdirectories and JSON metadata files
+	// Collect all subdirectories representing potential job folders
 	for _, entry := range entries {
 		if entry.IsDir() {
 			folders = append(folders, entry.Name())
-			continue
-		}
-		if path.Ext(entry.Name()) == ".json" {
-			jsons = append(jsons, entry.Name())
-			continue
 		}
 	}
 
-	// Process each JSON file and pair it with its corresponding folder
-	for _, jsonfile := range jsons {
-		base := jsonfile[0 : len(jsonfile)-5]
-		if !slices.Contains(folders, base) {
-			logger.Warn().Msgf("No folder for %s - skipping", path.Join(inputF, jsonfile))
+	// For each job folder, resolve its metadata JSON file (inside folder or sibling)
+	for _, base := range folders {
+		var infoFilePath string
+		folderInfoPath := path.Join(inputF, base, "info.json")
+		siblingInfoPath := path.Join(inputF, base+".json")
+
+		if _, err := os.Stat(folderInfoPath); err == nil {
+			infoFilePath = folderInfoPath
+		} else if _, err := os.Stat(siblingInfoPath); err == nil {
+			infoFilePath = siblingInfoPath
+		} else {
+			logger.Warn().Msgf("No metadata JSON found for folder %s - skipping", path.Join(inputF, base))
 			continue
 		}
-		jsonBytes, err := os.ReadFile(path.Join(inputF, jsonfile))
+
+		jsonBytes, err := os.ReadFile(infoFilePath)
 		if err != nil {
-			logger.Error().Err(err).Msgf("Failed to read %s", path.Join(inputF, jsonfile))
+			logger.Error().Err(err).Msgf("Failed to read %s", infoFilePath)
 			continue
 		}
 		var i = &info{}
 		if err := json.Unmarshal(jsonBytes, &i); err != nil {
-			logger.Error().Err(err).Msgf("Failed to unmarshal %s", path.Join(inputF, jsonfile))
+			logger.Error().Err(err).Msgf("Failed to unmarshal %s", infoFilePath)
 			continue
 		}
 
 		job := Job{
+			baseName:  base,
 			signature: i.Signature,
 			title:     i.Title,
-			infoFile:  path.Join(inputF, jsonfile),
+			infoFile:  infoFilePath,
 		}
 
 		// Check for the existence of data and metadata subfolders

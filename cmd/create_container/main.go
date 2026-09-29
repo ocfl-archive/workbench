@@ -31,7 +31,7 @@ func main() {
 	// Initialize zerolog to write formatted logs into the pipe
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: errWrite, TimeFormat: time.DateTime}).With().Timestamp().Logger()
 
-	app := tview.NewApplication().EnableMouse(true)
+	app := tview.NewApplication()
 
 	// Build the TUI components, passing the configuration and the read end of the pipe for real-time log streaming
 	bannerView, _ := setupUI(app, conf, logger, errRead)
