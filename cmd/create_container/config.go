@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"emperror.dev/errors"
 	"github.com/BurntSushi/toml"
@@ -15,15 +16,21 @@ type GOCFLConfig struct {
 }
 
 type WBConfig struct {
-	Input  string      `toml:"input"`
-	Ocfl   string      `toml:"ocfl"`
-	Report string      `toml:"report"`
-	Gocfl  GOCFLConfig `toml:"gocfl"`
+	Batches  string      `toml:"batches"`
+	Input    string      `toml:"input"`
+	Ocfl     string      `toml:"ocfl"`
+	Report   string      `toml:"report"`
+	Error    string      `toml:"error"`
+	Archived string      `toml:"archived"`
+	Gocfl    GOCFLConfig `toml:"gocfl"`
 }
 
 func LoadConfig(configPath string) (*WBConfig, error) {
 	if configPath == "" {
 		for _, path := range DefaultConfigPath {
+			if strings.Contains(path, "~/") {
+				path = os.ExpandEnv(path)
+			}
 			if _, err := os.Stat(path); err == nil {
 				configPath = path
 				break

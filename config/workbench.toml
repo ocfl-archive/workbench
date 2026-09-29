@@ -1,6 +1,9 @@
-input =  "C:/temp/zhbluzern/raphael_upload"
-ocfl = "C:/temp/zhbluzern/ocfl"
-report = "C:/temp/zhbluzern/report"
+batches = "C:/temp/zhbluzern/raphael_upload/"
+input =  "C:/temp/zhbluzern/raphael_upload/{batch}/incoming/"
+ocfl = "C:/temp/zhbluzern/raphael_upload/{batch}/ocfl/"
+report = "C:/temp/zhbluzern/raphael_upload/{batch}/report/"
+error = "C:/temp/zhbluzern/raphael_upload/{batch}/error/"
+archived = "C:/temp/zhbluzern/raphael_upload/{batch}/archived/"
 
 [gocfl]
 config = "c:/daten/go/dev/gocfl-cli/config/gocfl2.toml"
