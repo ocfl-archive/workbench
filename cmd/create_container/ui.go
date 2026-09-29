@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"path"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -146,11 +145,13 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		buttonFlex.Clear()
 		actionButtons = nil
 		currentJobs = nil
-		if batchName == "" || conf.Input == "" {
+		if batchName == "" {
 			return
 		}
-		batchPath := path.Join(conf.Input, batchName)
-		jobs, err := getSignatures(batchPath, conf.Ocfl, conf.Report, logger)
+		inputFolder := conf.GetInputFolder(batchName)
+		ocflFolder := conf.GetOcflFolder(batchName)
+		reportFolder := conf.GetReportFolder(batchName)
+		jobs, err := getSignatures(batchName, inputFolder, ocflFolder, reportFolder, logger)
 		if err != nil {
 			logger.Error().Err(err).Msgf("Failed to get jobs for batch %s", batchName)
 			return
@@ -190,10 +191,10 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 	})
 
 	// Initial population of the batch list
-	if conf.Input != "" {
-		batches, err := getBatches(conf.Input)
+	if conf.Batches != "" {
+		batches, err := getBatches(conf.Batches)
 		if err != nil {
-			logger.Error().Err(err).Msgf("Failed to read batches from %s", conf.Input)
+			logger.Error().Err(err).Msgf("Failed to read batches from %s", conf.Batches)
 		} else {
 			for _, b := range batches {
 				batchList.AddItem(b, "", 0, nil)
@@ -203,7 +204,7 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 			}
 		}
 	} else {
-		logger.Warn().Msg("No input specified in config")
+		logger.Warn().Msg("No batches folder specified in config")
 	}
 
 	// Upper layout section: Batches (left) | Jobs (middle) | Details + Actions (right)

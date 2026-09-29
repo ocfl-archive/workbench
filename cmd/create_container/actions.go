@@ -96,10 +96,15 @@ func runCommandInModal(
 // createOCFL displays a modal execution dialog and runs the background process
 // to build the OCFL container for the selected job, streaming process output in real-time.
 func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, logger zerolog.Logger, job Job, onFinish func()) {
+	ocflDir := conf.GetOcflFolder(job.batch)
+	if err := EnsureTargetDirectory(ocflDir); err != nil {
+		logger.Error().Err(err).Msgf("Failed to ensure target directory %s", ocflDir)
+		return
+	}
 	zipName := fmt.Sprintf("%s.zip", job.baseName)
 	cmd := exec.Command("gocfl",
 		"create",
-		filepath.Join(conf.Ocfl, zipName),
+		filepath.Join(ocflDir, zipName),
 		job.dataFolder,
 		fmt.Sprintf("metadata:%s", job.metadataFolder),
 		"-i", job.signature,
@@ -123,19 +128,25 @@ func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, logg
 
 // createReport generates the PDF report for the selected job.
 func createReport(app *tview.Application, pages *tview.Pages, conf *WBConfig, logger zerolog.Logger, job Job, onFinish func()) {
+	reportDir := conf.GetReportFolder(job.batch)
+	if err := EnsureTargetDirectory(reportDir); err != nil {
+		logger.Error().Err(err).Msgf("Failed to ensure target directory %s", reportDir)
+		return
+	}
 	port, err := GetFreePort()
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to get free network port")
 		return
 	}
 
+	ocflDir := conf.GetOcflFolder(job.batch)
 	zipName := fmt.Sprintf("%s.zip", job.baseName)
 	pdfName := fmt.Sprintf("%s.pdf", job.baseName)
 
 	cmd := exec.Command("gocfl",
 		"display",
-		filepath.Join(conf.Ocfl, zipName),
-		"--display-fullreport", filepath.Join(conf.Report, pdfName),
+		filepath.Join(ocflDir, zipName),
+		"--display-fullreport", filepath.Join(reportDir, pdfName),
 		"--display-id", job.signature,
 		"-a", fmt.Sprintf("localhost:%d", port),
 		"-e", fmt.Sprintf("http://localhost:%d", port),
@@ -159,10 +170,11 @@ func createReport(app *tview.Application, pages *tview.Pages, conf *WBConfig, lo
 // validateOCFL displays a modal execution dialog and runs the background process
 // to validate the OCFL container for the selected job, streaming process output in real-time.
 func validateOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, logger zerolog.Logger, job Job, onFinish func()) {
+	ocflDir := conf.GetOcflFolder(job.batch)
 	zipName := fmt.Sprintf("%s.zip", job.baseName)
 	cmd := exec.Command("gocfl",
 		"validate",
-		filepath.Join(conf.Ocfl, zipName),
+		filepath.Join(ocflDir, zipName),
 	)
 
 	title := fmt.Sprintf(" OCFL Validation: %s ", job.signature)

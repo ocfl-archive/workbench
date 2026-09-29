@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"path"
+	"path/filepath"
 
 	"emperror.dev/errors"
 	"github.com/rs/zerolog"
@@ -12,6 +12,7 @@ import (
 // Job represents a container packaging task along with the status of its associated input files and generated artifacts.
 type Job struct {
 	baseName       string // Base identifier / folder name of the job.
+	batch          string // Enclosing batch directory name.
 	infoFile       string // Path to the JSON file containing signature and title metadata.
 	dataFolder     string // Path to the folder containing data payload files, if present.
 	metadataFolder string // Path to the folder containing metadata files, if present.
@@ -46,7 +47,7 @@ func getBatches(folder string) ([]string, error) {
 
 // getSignatures scans a batch directory for matching metadata JSON files and folders,
 // parses job attributes, and checks for existing artifacts (data, metadata, OCFL zip, PDF report).
-func getSignatures(inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job, error) {
+func getSignatures(batchName, inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job, error) {
 	logger.Debug().Msgf("Scanning directory %s for signatures", inputF)
 	entries, err := os.ReadDir(inputF)
 	if err != nil {
@@ -65,15 +66,15 @@ func getSignatures(inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job,
 	// For each job folder, resolve its metadata JSON file (inside folder or sibling)
 	for _, base := range folders {
 		var infoFilePath string
-		folderInfoPath := path.Join(inputF, base, "info.json")
-		siblingInfoPath := path.Join(inputF, base+".json")
+		folderInfoPath := filepath.Join(inputF, base, "info.json")
+		siblingInfoPath := filepath.Join(inputF, base+".json")
 
 		if _, err := os.Stat(folderInfoPath); err == nil {
 			infoFilePath = folderInfoPath
 		} else if _, err := os.Stat(siblingInfoPath); err == nil {
 			infoFilePath = siblingInfoPath
 		} else {
-			logger.Warn().Msgf("No metadata JSON found for folder '%s' - skipping in '%s' and '%s'", path.Join(inputF, base), folderInfoPath, siblingInfoPath)
+			logger.Warn().Msgf("No metadata JSON found for folder '%s' - skipping in '%s' and '%s'", filepath.Join(inputF, base), folderInfoPath, siblingInfoPath)
 			continue
 		}
 
@@ -90,27 +91,28 @@ func getSignatures(inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job,
 
 		job := Job{
 			baseName:  base,
+			batch:     batchName,
 			signature: i.Signature,
 			title:     i.Title,
 			infoFile:  infoFilePath,
 		}
 
 		// Check for the existence of data and metadata subfolders
-		if _, err := os.Stat(path.Join(inputF, base, "data")); err == nil {
-			job.dataFolder = path.Join(inputF, base, "data")
+		if _, err := os.Stat(filepath.Join(inputF, base, "data")); err == nil {
+			job.dataFolder = filepath.Join(inputF, base, "data")
 		}
-		if _, err := os.Stat(path.Join(inputF, base, "metadata")); err == nil {
-			job.metadataFolder = path.Join(inputF, base, "metadata")
+		if _, err := os.Stat(filepath.Join(inputF, base, "metadata")); err == nil {
+			job.metadataFolder = filepath.Join(inputF, base, "metadata")
 		}
 
 		// Check if the report PDF has already been generated
-		if _, err := os.Stat(path.Join(reportF, base+".pdf")); err == nil {
-			job.reportFile = path.Join(reportF, base+".pdf")
+		if _, err := os.Stat(filepath.Join(reportF, base+".pdf")); err == nil {
+			job.reportFile = filepath.Join(reportF, base+".pdf")
 		}
 
 		// Check if the OCFL zip container has already been generated
-		if _, err := os.Stat(path.Join(ocflF, base+".zip")); err == nil {
-			job.ocflFile = path.Join(ocflF, base+".zip")
+		if _, err := os.Stat(filepath.Join(ocflF, base+".zip")); err == nil {
+			job.ocflFile = filepath.Join(ocflF, base+".zip")
 		}
 
 		result = append(result, job)
