@@ -65,7 +65,7 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		AddItem(detailView, 0, 1, false).
 		AddItem(buttonFlex, 3, 0, false)
 
-	var actionButton *tview.Button
+	var actionButtons []*tview.Button
 	var currentJobs []Job
 
 	var refreshCurrentBatch func()
@@ -73,11 +73,11 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 	pages := tview.NewPages()
 
 	// updateDetailAndActions refreshes the detail pane and dynamically adds the appropriate
-	// action button ("OCFL erstellen" or "Report erstellen") based on the current job's state.
+	// action buttons ("OCFL erstellen", "Report erstellen", "Validate") based on the current job's state.
 	updateDetailAndActions := func(job Job) {
 		showDetail(job, detailView)
 		buttonFlex.Clear()
-		actionButton = nil
+		actionButtons = nil
 
 		if job.signature == "" {
 			return
@@ -93,24 +93,41 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 					app.SetFocus(jobList)
 				})
 			})
-			actionButton = btn
-			buttonFlex.AddItem(nil, 0, 1, false).
-				AddItem(btn, 20, 0, false).
-				AddItem(nil, 0, 1, false)
-		} else if job.reportFile == "" {
-			// OCFL archive exists but PDF report is missing: provide button to create report
-			btn := tview.NewButton("Report erstellen").SetSelectedFunc(func() {
-				createReport(app, pages, conf, logger, job, func() {
+			actionButtons = append(actionButtons, btn)
+		} else {
+			// OCFL archive exists: provide button to create report if missing, and always provide Validate button
+			if job.reportFile == "" {
+				btnReport := tview.NewButton("Report erstellen").SetSelectedFunc(func() {
+					createReport(app, pages, conf, logger, job, func() {
+						if refreshCurrentBatch != nil {
+							refreshCurrentBatch()
+						}
+						app.SetFocus(jobList)
+					})
+				})
+				actionButtons = append(actionButtons, btnReport)
+			}
+
+			btnValidate := tview.NewButton("Validate").SetSelectedFunc(func() {
+				validateOCFL(app, pages, conf, logger, job, func() {
 					if refreshCurrentBatch != nil {
 						refreshCurrentBatch()
 					}
 					app.SetFocus(jobList)
 				})
 			})
-			actionButton = btn
-			buttonFlex.AddItem(nil, 0, 1, false).
-				AddItem(btn, 20, 0, false).
-				AddItem(nil, 0, 1, false)
+			actionButtons = append(actionButtons, btnValidate)
+		}
+
+		if len(actionButtons) > 0 {
+			buttonFlex.AddItem(nil, 0, 1, false)
+			for i, btn := range actionButtons {
+				if i > 0 {
+					buttonFlex.AddItem(nil, 2, 0, false)
+				}
+				buttonFlex.AddItem(btn, 20, 0, false)
+			}
+			buttonFlex.AddItem(nil, 0, 1, false)
 		}
 	}
 
@@ -127,7 +144,7 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		jobList.Clear()
 		detailView.Clear()
 		buttonFlex.Clear()
-		actionButton = nil
+		actionButtons = nil
 		currentJobs = nil
 		if batchName == "" || conf.Input == "" {
 			return
@@ -196,10 +213,10 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		AddItem(jobList, 0, 3, false).
 		AddItem(detailFlex, 0, 5, false)
 
-	// Helper to shift focus to the action button (if present) or the detail text view
+	// Helper to shift focus to the first action button (if present) or the detail text view
 	focusDetail := func() {
-		if actionButton != nil {
-			app.SetFocus(actionButton)
+		if len(actionButtons) > 0 {
+			app.SetFocus(actionButtons[0])
 		} else {
 			app.SetFocus(detailView)
 		}
@@ -208,7 +225,15 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 	// Helper to determine if focus is currently within the right detail pane
 	isDetailFocused := func() bool {
 		f := app.GetFocus()
-		return f == detailView || (actionButton != nil && f == actionButton)
+		if f == detailView {
+			return true
+		}
+		for _, btn := range actionButtons {
+			if f == btn {
+				return true
+			}
+		}
+		return false
 	}
 
 	// Global key interceptor for seamless Tab, Shift-Tab, and Arrow key navigation across panels, and Ctrl+Q/Ctrl+C to quit
@@ -228,17 +253,43 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 			} else if app.GetFocus() == jobList {
 				focusDetail()
 			} else {
-				app.SetFocus(batchList)
+				// If focused on an action button and there is a next action button, advance focus
+				advanced := false
+				for i, btn := range actionButtons {
+					if app.GetFocus() == btn && i < len(actionButtons)-1 {
+						app.SetFocus(actionButtons[i+1])
+						advanced = true
+						break
+					}
+				}
+				if !advanced {
+					app.SetFocus(batchList)
+				}
 			}
 			return nil
 
 		case tcell.KeyBacktab:
 			if isDetailFocused() {
-				app.SetFocus(jobList)
+				// If focused on an action button (not the first one), move to the previous button
+				movedPrev := false
+				for i, btn := range actionButtons {
+					if app.GetFocus() == btn && i > 0 {
+						app.SetFocus(actionButtons[i-1])
+						movedPrev = true
+						break
+					}
+				}
+				if !movedPrev {
+					app.SetFocus(jobList)
+				}
 			} else if app.GetFocus() == jobList {
 				app.SetFocus(batchList)
 			} else {
-				focusDetail()
+				if len(actionButtons) > 0 {
+					app.SetFocus(actionButtons[len(actionButtons)-1])
+				} else {
+					app.SetFocus(detailView)
+				}
 			}
 			return nil
 
@@ -249,9 +300,22 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 			} else if app.GetFocus() == jobList {
 				focusDetail()
 				return nil
+			} else {
+				for i, btn := range actionButtons {
+					if app.GetFocus() == btn && i < len(actionButtons)-1 {
+						app.SetFocus(actionButtons[i+1])
+						return nil
+					}
+				}
 			}
 
 		case tcell.KeyLeft:
+			for i, btn := range actionButtons {
+				if app.GetFocus() == btn && i > 0 {
+					app.SetFocus(actionButtons[i-1])
+					return nil
+				}
+			}
 			if isDetailFocused() {
 				app.SetFocus(jobList)
 				return nil

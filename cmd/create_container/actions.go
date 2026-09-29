@@ -127,3 +127,18 @@ func createReport(app *tview.Application, pages *tview.Pages, conf *WBConfig, lo
 
 	runCommandInModal(app, pages, title, startMsg, cmd, onFinish)
 }
+
+// validateOCFL displays a modal execution dialog and runs the background process
+// to validate the OCFL container for the selected job, streaming process output in real-time.
+func validateOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, logger zerolog.Logger, job Job, onFinish func()) {
+	zipName := fmt.Sprintf("%s.zip", job.baseName)
+	cmd := exec.Command("gocfl",
+		"validate",
+		filepath.Join(conf.Ocfl, zipName),
+	)
+
+	title := fmt.Sprintf(" OCFL Validierung: %s ", job.signature)
+	startMsg := fmt.Sprintf("[yellow]Starte OCFL-Validierung für %s...[white]", job.signature)
+
+	runCommandInModal(app, pages, title, startMsg, cmd, onFinish)
+}
