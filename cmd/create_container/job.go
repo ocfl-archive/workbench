@@ -47,6 +47,7 @@ func getBatches(folder string) ([]string, error) {
 // getSignatures scans a batch directory for matching metadata JSON files and folders,
 // parses job attributes, and checks for existing artifacts (data, metadata, OCFL zip, PDF report).
 func getSignatures(inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job, error) {
+	logger.Debug().Msgf("Scanning directory %s for signatures", inputF)
 	entries, err := os.ReadDir(inputF)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read directory %s", inputF)
