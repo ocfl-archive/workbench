@@ -20,7 +20,7 @@ func runCommandInModal(
 	title string,
 	startMsg string,
 	cmd *exec.Cmd,
-	onFinish func(),
+	onFinish func(exitCode int),
 ) {
 	modalText := tview.NewTextView().
 		SetDynamicColors(true).
@@ -47,9 +47,11 @@ func runCommandInModal(
 		stdout, _ := cmd.StdoutPipe()
 		stderr, _ := cmd.StderrPipe()
 
+		var exitCode int
 		if err := cmd.Start(); err != nil {
+			exitCode = -1
 			app.QueueUpdateDraw(func() {
-				fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Fehler beim Starten des Prozesses: %v[white]\n", err)
+				fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Error starting process: %v[white]\n", err)
 			})
 		} else {
 			multiReader := io.MultiReader(stdout, stderr)
@@ -61,11 +63,19 @@ func runCommandInModal(
 					modalText.ScrollToEnd()
 				})
 			}
-			_ = cmd.Wait()
+			if err := cmd.Wait(); err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					exitCode = exitErr.ExitCode()
+				} else {
+					exitCode = -1
+				}
+			} else {
+				exitCode = 0
+			}
 		}
 
 		app.QueueUpdateDraw(func() {
-			fmt.Fprintf(tview.ANSIWriter(modalText), "\n[green]Prozess beendet. Drücken Sie [yellow]ESC[green] oder [yellow]ENTER[green] zum Schließen...[white]\n")
+			fmt.Fprintf(tview.ANSIWriter(modalText), "\n[green]Process finished. Press [yellow]ESC[green] or [yellow]ENTER[green] to close...[white]\n")
 			modalText.ScrollToEnd()
 
 			modalText.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -73,7 +83,7 @@ func runCommandInModal(
 				case tcell.KeyEscape, tcell.KeyEnter:
 					pages.RemovePage("execModal")
 					if onFinish != nil {
-						onFinish()
+						onFinish(exitCode)
 					}
 					return nil
 				}
@@ -96,10 +106,19 @@ func createOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, logg
 		"--ext-NNNN-metafile-source", job.infoFile,
 	)
 
-	title := fmt.Sprintf(" OCFL Erstellung: %s ", job.signature)
-	startMsg := fmt.Sprintf("[yellow]Starte OCFL-Erstellung für %s...[white]", job.signature)
+	title := fmt.Sprintf(" OCFL Creation: %s ", job.signature)
+	startMsg := fmt.Sprintf("[yellow]Starting OCFL creation for %s...[white]", job.signature)
 
-	runCommandInModal(app, pages, title, startMsg, cmd, onFinish)
+	runCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int) {
+		if exitCode != 0 {
+			logger.Error().Msgf("Failed to create OCFL container for %s (exit code: %d)", job.signature, exitCode)
+		} else {
+			logger.Info().Msgf("OCFL container creation for %s completed successfully", job.signature)
+		}
+		if onFinish != nil {
+			onFinish()
+		}
+	})
 }
 
 // createReport generates the PDF report for the selected job.
@@ -122,10 +141,19 @@ func createReport(app *tview.Application, pages *tview.Pages, conf *WBConfig, lo
 		"-e", fmt.Sprintf("http://localhost:%d", port),
 	)
 
-	title := fmt.Sprintf(" Report Erstellung: %s ", job.signature)
-	startMsg := fmt.Sprintf("[yellow]Starte OCFL-Report-Erstellung für %s...[white]", job.signature)
+	title := fmt.Sprintf(" Report Generation: %s ", job.signature)
+	startMsg := fmt.Sprintf("[yellow]Starting OCFL report generation for %s...[white]", job.signature)
 
-	runCommandInModal(app, pages, title, startMsg, cmd, onFinish)
+	runCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int) {
+		if exitCode != 0 {
+			logger.Error().Msgf("Failed to generate report for %s (exit code: %d)", job.signature, exitCode)
+		} else {
+			logger.Info().Msgf("Report generation for %s completed successfully", job.signature)
+		}
+		if onFinish != nil {
+			onFinish()
+		}
+	})
 }
 
 // validateOCFL displays a modal execution dialog and runs the background process
@@ -137,8 +165,17 @@ func validateOCFL(app *tview.Application, pages *tview.Pages, conf *WBConfig, lo
 		filepath.Join(conf.Ocfl, zipName),
 	)
 
-	title := fmt.Sprintf(" OCFL Validierung: %s ", job.signature)
-	startMsg := fmt.Sprintf("[yellow]Starte OCFL-Validierung für %s...[white]", job.signature)
+	title := fmt.Sprintf(" OCFL Validation: %s ", job.signature)
+	startMsg := fmt.Sprintf("[yellow]Starting OCFL validation for %s...[white]", job.signature)
 
-	runCommandInModal(app, pages, title, startMsg, cmd, onFinish)
+	runCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int) {
+		if exitCode != 0 {
+			logger.Error().Msgf("Failed to validate OCFL container for %s (exit code: %d)", job.signature, exitCode)
+		} else {
+			logger.Info().Msgf("OCFL validation for %s completed successfully", job.signature)
+		}
+		if onFinish != nil {
+			onFinish()
+		}
+	})
 }
