@@ -1,7 +1,7 @@
-package main
+package ui
 
-// banner contains the ASCII art logo displayed on application startup.
-const banner = `
+// Banner contains the ASCII art logo displayed on application startup.
+const Banner = `
 ██████╗  ██████╗███████╗██╗     
 ██╔═══██╗██╔════╝██╔════╝██║     
 ██║   ██║██║     █████╗  ██║     

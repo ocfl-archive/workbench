@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/ocfl-archive/workbench/internal/config"
+	"github.com/ocfl-archive/workbench/internal/ui"
 	"github.com/rivo/tview"
 	"github.com/rs/zerolog"
 )
@@ -17,7 +19,7 @@ var configPath = flag.String("config", "", "The path to the configuration file")
 func main() {
 	flag.Parse()
 
-	conf, err := LoadConfig(*configPath)
+	conf, err := config.LoadConfig(*configPath)
 	if err != nil {
 		panic(err)
 	}
@@ -34,9 +36,9 @@ func main() {
 	app := tview.NewApplication()
 
 	// Build the TUI components, passing the configuration and the read end of the pipe for real-time log streaming
-	bannerView, _ := setupUI(app, conf, logger, errRead)
+	bannerView, _ := ui.SetupUI(app, conf, logger, errRead)
 
-	// Display the banner view on startup; setupUI will switch to the main layout after a short delay
+	// Display the banner view on startup; SetupUI will switch to the main layout after a short delay
 	if err := app.SetRoot(bannerView, true).Run(); err != nil {
 		panic(err)
 	}

@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"bufio"
@@ -7,38 +7,20 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/ocfl-archive/workbench/internal/config"
+	"github.com/ocfl-archive/workbench/internal/job"
+	"github.com/ocfl-archive/workbench/internal/runner"
+	"github.com/ocfl-archive/workbench/internal/util"
 	"github.com/rivo/tview"
 	"github.com/rs/zerolog"
 )
 
-// showDetail renders formatted metadata and file path status for the given job into the target TextView.
-func showDetail(job Job, target *tview.TextView) {
-	target.Clear()
-	fmt.Fprintf(target, "[yellow]Signature:[white] %s\n", job.signature)
-	fmt.Fprintf(target, "[yellow]Title:[white]     %s\n", job.title)
-	if job.infoFile != "" {
-		fmt.Fprintf(target, "\n[green]Info File:[white]       %s\n", job.infoFile)
-	}
-	if job.dataFolder != "" {
-		fmt.Fprintf(target, "[green]Data Folder:[white]     %s\n", job.dataFolder)
-	}
-	if job.metadataFolder != "" {
-		fmt.Fprintf(target, "[green]Metadata Folder:[white] %s\n", job.metadataFolder)
-	}
-	if job.reportFile != "" {
-		fmt.Fprintf(target, "[green]Report File:[white]     %s\n", job.reportFile)
-	}
-	if job.ocflFile != "" {
-		fmt.Fprintf(target, "[green]OCFL File:[white]       %s\n", job.ocflFile)
-	}
-}
-
-// setupUI constructs and wires all TUI components, pages, keyboard navigation handlers,
+// SetupUI constructs and wires all TUI components, pages, keyboard navigation handlers,
 // and background log streaming routines, returning the initial banner view and pages manager.
-func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logReader io.Reader) (*tview.TextView, *tview.Pages) {
+func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logger, logReader io.Reader) (*tview.TextView, *tview.Pages) {
 	// Initialize startup banner view
 	bannerView := tview.NewTextView().
-		SetText(banner).
+		SetText(Banner).
 		SetTextAlign(tview.AlignCenter)
 
 	// Batches list on the left panel
@@ -65,7 +47,7 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		AddItem(buttonFlex, 3, 0, false)
 
 	var actionButtons []*tview.Button
-	var currentJobs []Job
+	var currentJobs []job.Job
 
 	var refreshCurrentBatch func()
 
@@ -73,19 +55,32 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 
 	// updateDetailAndActions refreshes the detail pane and dynamically adds the appropriate
 	// action buttons ("OCFL erstellen", "Report erstellen", "Validate") based on the current job's state.
-	updateDetailAndActions := func(job Job) {
-		showDetail(job, detailView)
+	updateDetailAndActions := func(j job.Job) {
+		ShowDetail(j, detailView)
 		buttonFlex.Clear()
 		actionButtons = nil
 
-		if job.signature == "" {
+		if j.Signature == "" {
 			return
 		}
 
-		if job.ocflFile == "" {
+		if j.OcflFile == "" {
 			// OCFL archive is missing: provide button to create OCFL container
 			btn := tview.NewButton("OCFL erstellen").SetSelectedFunc(func() {
-				createOCFL(app, pages, conf, logger, job, func() {
+				cmd, err := runner.CreateOCFLCmd(conf, j)
+				if err != nil {
+					logger.Error().Err(err).Msgf("Failed to prepare OCFL creation for %s", j.Signature)
+					return
+				}
+				title := fmt.Sprintf(" OCFL Creation: %s ", j.Signature)
+				startMsg := fmt.Sprintf("[yellow]Starting OCFL creation for %s...[white]", j.Signature)
+
+				RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int) {
+					if exitCode != 0 {
+						logger.Error().Msgf("Failed to create OCFL container for %s (exit code: %d)", j.Signature, exitCode)
+					} else {
+						logger.Info().Msgf("OCFL container creation for %s completed successfully", j.Signature)
+					}
 					if refreshCurrentBatch != nil {
 						refreshCurrentBatch()
 					}
@@ -95,9 +90,27 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 			actionButtons = append(actionButtons, btn)
 		} else {
 			// OCFL archive exists: provide button to create report if missing, and always provide Validate button
-			if job.reportFile == "" {
+			if j.ReportFile == "" {
 				btnReport := tview.NewButton("Report erstellen").SetSelectedFunc(func() {
-					createReport(app, pages, conf, logger, job, func() {
+					port, err := util.GetFreePort()
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to get free network port")
+						return
+					}
+					cmd, err := runner.CreateReportCmd(conf, j, port)
+					if err != nil {
+						logger.Error().Err(err).Msgf("Failed to prepare report generation for %s", j.Signature)
+						return
+					}
+					title := fmt.Sprintf(" Report Generation: %s ", j.Signature)
+					startMsg := fmt.Sprintf("[yellow]Starting OCFL report generation for %s...[white]", j.Signature)
+
+					RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int) {
+						if exitCode != 0 {
+							logger.Error().Msgf("Failed to generate report for %s (exit code: %d)", j.Signature, exitCode)
+						} else {
+							logger.Info().Msgf("Report generation for %s completed successfully", j.Signature)
+						}
 						if refreshCurrentBatch != nil {
 							refreshCurrentBatch()
 						}
@@ -108,7 +121,20 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 			}
 
 			btnValidate := tview.NewButton("Validate").SetSelectedFunc(func() {
-				validateOCFL(app, pages, conf, logger, job, func() {
+				cmd, err := runner.ValidateOCFLCmd(conf, j)
+				if err != nil {
+					logger.Error().Err(err).Msgf("Failed to prepare OCFL validation for %s", j.Signature)
+					return
+				}
+				title := fmt.Sprintf(" OCFL Validation: %s ", j.Signature)
+				startMsg := fmt.Sprintf("[yellow]Starting OCFL validation for %s...[white]", j.Signature)
+
+				RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int) {
+					if exitCode != 0 {
+						logger.Error().Msgf("Failed to validate OCFL container for %s (exit code: %d)", j.Signature, exitCode)
+					} else {
+						logger.Info().Msgf("OCFL validation for %s completed successfully", j.Signature)
+					}
 					if refreshCurrentBatch != nil {
 						refreshCurrentBatch()
 					}
@@ -151,14 +177,14 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 		inputFolder := conf.GetInputFolder(batchName)
 		ocflFolder := conf.GetOcflFolder(batchName)
 		reportFolder := conf.GetReportFolder(batchName)
-		jobs, err := getSignatures(batchName, inputFolder, ocflFolder, reportFolder, logger)
+		jobs, err := job.GetSignatures(batchName, inputFolder, ocflFolder, reportFolder, logger)
 		if err != nil {
 			logger.Error().Err(err).Msgf("Failed to get jobs for batch %s", batchName)
 			return
 		}
 		currentJobs = jobs
-		for _, job := range jobs {
-			jobList.AddItem(job.signature, "", 0, nil)
+		for _, j := range jobs {
+			jobList.AddItem(j.Signature, "", 0, nil)
 		}
 		if len(currentJobs) > 0 {
 			if targetIndex >= len(currentJobs) {
@@ -192,7 +218,7 @@ func setupUI(app *tview.Application, conf *WBConfig, logger zerolog.Logger, logR
 
 	// Initial population of the batch list
 	if conf.Batches != "" {
-		batches, err := getBatches(conf.Batches)
+		batches, err := job.GetBatches(conf.Batches)
 		if err != nil {
 			logger.Error().Err(err).Msgf("Failed to read batches from %s", conf.Batches)
 		} else {
