@@ -7,3 +7,6 @@ archived = "C:/temp/zhbluzern/raphael_upload/{batch}/archived/"
 
 [gocfl]
 config = "c:/daten/go/dev/gocfl-cli/config/gocfl2.toml"
+
+[ona]
+config = "c:/daten/go/dev/workbench/config/ona.yml"
