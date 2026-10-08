@@ -15,6 +15,11 @@ type GOCFLConfig struct {
 	Config string `toml:"config"`
 }
 
+// ONAConfig holds configuration specific to ona command-line executions.
+type ONAConfig struct {
+	Config string `toml:"config"`
+}
+
 // WBConfig holds the main configuration for the workbench environment.
 type WBConfig struct {
 	Batches  string      `toml:"batches"`
@@ -24,6 +29,7 @@ type WBConfig struct {
 	Error    string      `toml:"error"`
 	Archived string      `toml:"archived"`
 	Gocfl    GOCFLConfig `toml:"gocfl"`
+	Ona      ONAConfig   `toml:"ona"`
 }
 
 func (c *WBConfig) resolvePath(pattern, batch, fallbackSuffix string) string {

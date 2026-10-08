@@ -1,9 +1,12 @@
 package runner
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/ocfl-archive/workbench/internal/config"
 	"github.com/ocfl-archive/workbench/internal/job"
@@ -61,4 +64,43 @@ func ValidateOCFLCmd(conf *config.WBConfig, j job.Job) (*exec.Cmd, error) {
 		filepath.Join(ocflDir, zipName),
 	)
 	return cmd, nil
+}
+
+// IngestOCFLCmd builds the exec.Cmd for ingesting an OCFL container using ona.
+func IngestOCFLCmd(conf *config.WBConfig, j job.Job) (*exec.Cmd, error) {
+	ocflDir := conf.GetOcflFolder(j.Batch)
+	zipName := fmt.Sprintf("%s.zip", j.BaseName)
+	zipPath := filepath.Join(ocflDir, zipName)
+
+	args := []string{"ingest", "-p", zipPath}
+	if conf.Ona.Config != "" {
+		args = append(args, "-c", conf.Ona.Config)
+	}
+
+	cmd := exec.Command("ona", args...)
+	return cmd, nil
+}
+
+// CreateUploadRecord creates a .upload.json file for the given job containing the upload timestamp.
+func CreateUploadRecord(conf *config.WBConfig, j job.Job) error {
+	ocflDir := conf.GetOcflFolder(j.Batch)
+	if err := util.EnsureTargetDirectory(ocflDir); err != nil {
+		return fmt.Errorf("failed to ensure OCFL target directory '%s': %w", ocflDir, err)
+	}
+
+	uploadPath := filepath.Join(ocflDir, fmt.Sprintf("%s.upload.json", j.BaseName))
+	uploadInfo := job.UploadInfo{
+		Date: time.Now().Format(time.RFC3339),
+	}
+
+	data, err := json.MarshalIndent(uploadInfo, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal upload info: %w", err)
+	}
+
+	if err := os.WriteFile(uploadPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write upload file '%s': %w", uploadPath, err)
+	}
+
+	return nil
 }

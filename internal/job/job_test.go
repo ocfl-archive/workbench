@@ -60,12 +60,15 @@ func TestGetSignaturesWithBatch(t *testing.T) {
 		t.Fatalf("failed to write job1 info: %v", err)
 	}
 
-	// Pre-create OCFL zip and PDF for job1
+	// Pre-create OCFL zip, PDF, and upload.json for job1
 	if err := os.WriteFile(filepath.Join(ocflDir, "job1.zip"), []byte("ocfl-content"), 0644); err != nil {
 		t.Fatalf("failed to write job1 ocfl: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(reportDir, "job1.pdf"), []byte("pdf-content"), 0644); err != nil {
 		t.Fatalf("failed to write job1 report: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ocflDir, "job1.upload.json"), []byte(`{"date":"2026-10-08T12:00:00Z"}`), 0644); err != nil {
+		t.Fatalf("failed to write job1 upload.json: %v", err)
 	}
 
 	logger := zerolog.Nop()
@@ -93,5 +96,8 @@ func TestGetSignaturesWithBatch(t *testing.T) {
 	}
 	if j.ReportFile == "" {
 		t.Errorf("expected job.ReportFile to be set")
+	}
+	if j.UploadFile == "" {
+		t.Errorf("expected job.UploadFile to be set")
 	}
 }

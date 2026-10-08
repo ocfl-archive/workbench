@@ -91,6 +91,13 @@ func GetSignatures(batchName, inputF, ocflF, reportF string, logger zerolog.Logg
 			reportFile = reportPdf
 		}
 
+		// 5. Check for existing upload marker (.upload.json)
+		var uploadFile string
+		uploadJson := filepath.Join(ocflF, cleanBaseName+".upload.json")
+		if _, err := os.Stat(uploadJson); err == nil {
+			uploadFile = uploadJson
+		}
+
 		jobs = append(jobs, Job{
 			BaseName:       baseName,
 			Batch:          batchName,
@@ -99,6 +106,7 @@ func GetSignatures(batchName, inputF, ocflF, reportF string, logger zerolog.Logg
 			MetadataFolder: metadataPath,
 			OcflFile:       ocflFile,
 			ReportFile:     reportFile,
+			UploadFile:     uploadFile,
 			Signature:      meta.Signature,
 			Title:          meta.Title,
 		})

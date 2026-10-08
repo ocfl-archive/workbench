@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -75,5 +76,36 @@ func TestWBConfigPathResolution(t *testing.T) {
 	}
 	if got := emptyConf.GetArchivedFolder(batch); got != filepath.Join("C:", "data", "batches", "batch_01", "archived") {
 		t.Errorf("GetArchivedFolder() fallback = %v, want %v", got, filepath.Join("C:", "data", "batches", "batch_01", "archived"))
+	}
+}
+
+func TestLoadConfigWithOna(t *testing.T) {
+	tempDir := t.TempDir()
+	tomlPath := filepath.Join(tempDir, "workbench.toml")
+	tomlContent := `
+batches = "C:/data/batches/"
+input = "C:/data/batches/{batch}/incoming/"
+ocfl = "C:/data/batches/{batch}/ocfl/"
+
+[gocfl]
+config = "C:/gocfl/config.toml"
+
+[ona]
+config = "C:/ona/config.yml"
+`
+	if err := os.WriteFile(tomlPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("failed to write test toml: %v", err)
+	}
+
+	conf, err := LoadConfig(tomlPath)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if conf.Gocfl.Config != "C:/gocfl/config.toml" {
+		t.Errorf("conf.Gocfl.Config = %v, want C:/gocfl/config.toml", conf.Gocfl.Config)
+	}
+	if conf.Ona.Config != "C:/ona/config.yml" {
+		t.Errorf("conf.Ona.Config = %v, want C:/ona/config.yml", conf.Ona.Config)
 	}
 }

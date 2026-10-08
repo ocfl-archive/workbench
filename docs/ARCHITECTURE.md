@@ -38,7 +38,7 @@ graph TD
 | **CLI Entry Point** | `cmd/create_container/main.go` | Parses CLI flags, initializes configuration, creates log streaming pipe, and runs the TUI event loop. |
 | **Config** | `internal/config` | Loads TOML configurations, discovers default config file locations, and resolves batch-specific dynamic directory paths (`{batch}`). |
 | **Job** | `internal/job` | Defines `Job` and `Info` data structures and scans the filesystem to discover batches, jobs, and associated artifacts (`info.json`, `.zip`, `.pdf`). |
-| **Runner** | `internal/runner` | Constructs `exec.Cmd` instances for `gocfl` CLI invocations (`create`, `display` / report generation, and `validate`). |
+| **Runner** | `internal/runner` | Constructs `exec.Cmd` instances for `gocfl` CLI invocations (`create`, `display` / report generation, `validate`) and `ona` CLI invocations (`ingest`), as well as recording upload timestamps (`.upload.json`). |
 | **UI** | `internal/ui` | Manages the terminal user interface (`tview`), layout splits (Batches, Jobs, Details, Actions, Logs), keyboard navigation, and real-time process output streaming modals. |
 | **Util** | `internal/util` | General-purpose helpers, including directory existence validation (`EnsureTargetDirectory`) and dynamic TCP port allocation (`GetFreePort`). |
 
@@ -65,15 +65,19 @@ stateDiagram-v2
         ActionReport --> ReportReady: Report generated
         ReportReady --> ActionValidate: Action "Validate"
         MissingReport --> ActionValidate: Action "Validate"
+        ReportReady --> ActionIngest: Action "Ingest"
+        MissingReport --> ActionIngest: Action "Ingest"
     }
 
     ActionValidate --> OCFLCreated: Validation finished
+    ActionIngest --> Ingested: ona ingest succeeds (.upload.json created)
 ```
 
 1. **Ingest Discovery:** The scanner identifies jobs containing `info.json` or `<folder_name>.json` within the input directory.
 2. **OCFL Creation:** If no `.zip` file exists in the target OCFL directory, the UI offers **OCFL erstellen**. Running this invokes `gocfl create` with metadata and content folder parameters.
 3. **Report Generation:** Once the `.zip` archive exists, if no corresponding `.pdf` report is found, the UI enables **Report erstellen**. Running this allocates an ephemeral TCP port and invokes `gocfl display --display-fullreport ...`.
 4. **Validation:** For any existing `.zip` container, the **Validate** button allows operators to verify checksums and OCFL compliance via `gocfl validate`.
+5. **Ingest:** For any existing `.zip` container, the **Ingest** button allows operators to send the container to archival storage via `ona ingest`. Upon successful execution, a `.upload.json` file is generated containing the upload timestamp.
 
 ---
 

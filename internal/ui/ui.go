@@ -142,6 +142,34 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 				})
 			})
 			actionButtons = append(actionButtons, btnValidate)
+
+			btnIngest := tview.NewButton("Ingest").SetSelectedFunc(func() {
+				cmd, err := runner.IngestOCFLCmd(conf, j)
+				if err != nil {
+					logger.Error().Err(err).Msgf("Failed to prepare OCFL ingest for %s", j.Signature)
+					return
+				}
+				title := fmt.Sprintf(" OCFL Ingest: %s ", j.Signature)
+				startMsg := fmt.Sprintf("[yellow]Starting OCFL ingest for %s...[white]", j.Signature)
+
+				RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int) {
+					if exitCode != 0 {
+						logger.Error().Msgf("Failed to ingest OCFL container for %s (exit code: %d)", j.Signature, exitCode)
+					} else {
+						logger.Info().Msgf("OCFL ingest for %s completed successfully", j.Signature)
+						if err := runner.CreateUploadRecord(conf, j); err != nil {
+							logger.Error().Err(err).Msgf("Failed to create upload file for %s", j.Signature)
+						} else {
+							logger.Info().Msgf("Created upload file for %s", j.Signature)
+						}
+					}
+					if refreshCurrentBatch != nil {
+						refreshCurrentBatch()
+					}
+					app.SetFocus(jobList)
+				})
+			})
+			actionButtons = append(actionButtons, btnIngest)
 		}
 
 		if len(actionButtons) > 0 {
