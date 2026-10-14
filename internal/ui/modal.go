@@ -18,7 +18,7 @@ func RunCommandInModal(
 	title string,
 	startMsg string,
 	cmd *exec.Cmd,
-	onFinish func(exitCode int),
+	onFinish func(exitCode int, output string),
 ) {
 	modalText := tview.NewTextView().
 		SetDynamicColors(true).
@@ -39,6 +39,7 @@ func RunCommandInModal(
 	app.SetFocus(modalText)
 
 	go func() {
+		var output strings.Builder
 		fmt.Fprintf(tview.ANSIWriter(modalText), "%s\n\n", startMsg)
 		fmt.Fprintln(tview.ANSIWriter(modalText), strings.Join(cmd.Args, " "))
 
@@ -48,14 +49,18 @@ func RunCommandInModal(
 		var exitCode int
 		if err := cmd.Start(); err != nil {
 			exitCode = -1
+			errMsg := fmt.Sprintf("Error starting process: %v\n", err)
+			output.WriteString(errMsg)
 			app.QueueUpdateDraw(func() {
-				fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Error starting process: %v[white]\n", err)
+				fmt.Fprintf(tview.ANSIWriter(modalText), "[red]%s[white]", errMsg)
 			})
 		} else {
 			multiReader := io.MultiReader(stdout, stderr)
 			scanner := bufio.NewScanner(multiReader)
 			for scanner.Scan() {
 				line := scanner.Text()
+				output.WriteString(line)
+				output.WriteString("\n")
 				app.QueueUpdateDraw(func() {
 					fmt.Fprintf(tview.ANSIWriter(modalText), "%s\n", line)
 					modalText.ScrollToEnd()
@@ -81,7 +86,7 @@ func RunCommandInModal(
 				case tcell.KeyEscape, tcell.KeyEnter:
 					pages.RemovePage("execModal")
 					if onFinish != nil {
-						onFinish(exitCode)
+						onFinish(exitCode, output.String())
 					}
 					return nil
 				}

@@ -12,8 +12,20 @@ func ShowDetail(j job.Job, target *tview.TextView) {
 	target.Clear()
 	fmt.Fprintf(target, "[yellow]Signature:[white] %s\n", j.Signature)
 	fmt.Fprintf(target, "[yellow]Title:[white]     %s\n", j.Title)
+	if j.Status != "" {
+		fmt.Fprintf(target, "[yellow]Status:[white]    %s\n", j.Status)
+	}
+	if j.IngestID != "" {
+		fmt.Fprintf(target, "[yellow]Ingest ID:[white] %s\n", j.IngestID)
+	}
+	if j.IncomingFolder != "" {
+		fmt.Fprintf(target, "\n[green]Incoming Folder:[white] %s\n", j.IncomingFolder)
+	}
 	if j.InfoFile != "" {
-		fmt.Fprintf(target, "\n[green]Info File:[white]       %s\n", j.InfoFile)
+		if j.IncomingFolder == "" {
+			fmt.Fprintf(target, "\n")
+		}
+		fmt.Fprintf(target, "[green]Info File:[white]       %s\n", j.InfoFile)
 	}
 	if j.DataFolder != "" {
 		fmt.Fprintf(target, "[green]Data Folder:[white]     %s\n", j.DataFolder)
@@ -29,5 +41,8 @@ func ShowDetail(j job.Job, target *tview.TextView) {
 	}
 	if j.UploadFile != "" {
 		fmt.Fprintf(target, "[green]Upload File:[white]     %s\n", j.UploadFile)
+	}
+	if j.ErrorFile != "" {
+		fmt.Fprintf(target, "[green]Error File:[white]      %s\n", j.ErrorFile)
 	}
 }

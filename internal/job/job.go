@@ -1,15 +1,28 @@
 package job
 
+// JobStatus represents the processing status and location of a job within a batch.
+type JobStatus string
+
+const (
+	StatusIncoming JobStatus = "incoming"
+	StatusError    JobStatus = "error"
+	StatusArchived JobStatus = "archived"
+)
+
 // Job represents a single digitization/preservation unit within a batch.
 type Job struct {
 	BaseName       string
 	Batch          string
+	Status         JobStatus
+	IncomingFolder string
 	InfoFile       string
 	DataFolder     string
 	MetadataFolder string
 	OcflFile       string
 	ReportFile     string
 	UploadFile     string
+	ErrorFile      string
+	IngestID       string
 	Signature      string
 	Title          string
 }

@@ -26,12 +26,42 @@ func GetBatches(folder string) ([]string, error) {
 	return batches, nil
 }
 
-// GetSignatures scans the batch's incoming folder for jobs, parsing metadata (info.json)
-// and locating associated OCFL containers and reports.
-func GetSignatures(batchName, inputF, ocflF, reportF string, logger zerolog.Logger) ([]Job, error) {
-	entries, err := os.ReadDir(inputF)
+// ExtractIngestID extracts the "id" field from an ingest result JSON byte slice.
+// It handles string, float64, and integer representations and returns an empty string if missing or invalid.
+func ExtractIngestID(data []byte) string {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return ""
+	}
+	val, ok := payload["id"]
+	if !ok || val == nil {
+		return ""
+	}
+	switch v := val.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	case int:
+		return fmt.Sprintf("%d", v)
+	case int64:
+		return fmt.Sprintf("%d", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// scanDirectory scans a specific batch subfolder (incoming, error, archived) for jobs.
+func scanDirectory(batchName, folder, ocflF, reportF string, status JobStatus, logger zerolog.Logger) ([]Job, error) {
+	if folder == "" {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(folder)
 	if err != nil {
-		return nil, fmt.Errorf("error reading input directory '%s': %w", inputF, err)
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("error reading directory '%s': %w", folder, err)
 	}
 
 	var jobs []Job
@@ -41,15 +71,18 @@ func GetSignatures(batchName, inputF, ocflF, reportF string, logger zerolog.Logg
 		}
 
 		baseName := entry.Name()
-		folderPath := filepath.Join(inputF, baseName)
+		folderPath := filepath.Join(folder, baseName)
 
-		// 1. Check for info.json inside the folder or <foldername>.json next to it
+		// 1. Check for info.json inside the folder or <foldername>.json inside / next to it
 		infoPath := filepath.Join(folderPath, "info.json")
 		if _, err := os.Stat(infoPath); os.IsNotExist(err) {
 			infoPath = filepath.Join(folderPath, baseName+".json")
 			if _, err := os.Stat(infoPath); os.IsNotExist(err) {
-				logger.Warn().Str("folder", folderPath).Msg("Skipping folder: no info.json found")
-				continue
+				infoPath = filepath.Join(folder, baseName+".json")
+				if _, err := os.Stat(infoPath); os.IsNotExist(err) {
+					logger.Warn().Str("folder", folderPath).Msg("Skipping folder: no info.json found")
+					continue
+				}
 			}
 		}
 
@@ -76,12 +109,26 @@ func GetSignatures(batchName, inputF, ocflF, reportF string, logger zerolog.Logg
 			metadataPath = ""
 		}
 
+		cleanBaseName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
+
 		// 3. Check for existing OCFL container (.zip)
 		var ocflFile string
-		cleanBaseName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
-		ocflZip := filepath.Join(ocflF, cleanBaseName+".zip")
-		if _, err := os.Stat(ocflZip); err == nil {
-			ocflFile = ocflZip
+		switch status {
+		case StatusArchived:
+			ocflZip := filepath.Join(folder, cleanBaseName+".zip")
+			if _, err := os.Stat(ocflZip); err == nil {
+				ocflFile = ocflZip
+			} else {
+				ocflZip = filepath.Join(ocflF, cleanBaseName+".zip")
+				if _, err := os.Stat(ocflZip); err == nil {
+					ocflFile = ocflZip
+				}
+			}
+		default:
+			ocflZip := filepath.Join(ocflF, cleanBaseName+".zip")
+			if _, err := os.Stat(ocflZip); err == nil {
+				ocflFile = ocflZip
+			}
 		}
 
 		// 4. Check for existing report (.pdf)
@@ -91,26 +138,92 @@ func GetSignatures(batchName, inputF, ocflF, reportF string, logger zerolog.Logg
 			reportFile = reportPdf
 		}
 
-		// 5. Check for existing upload marker (.upload.json)
+		// 5. Check for upload marker, error log, or ingest ID
 		var uploadFile string
-		uploadJson := filepath.Join(ocflF, cleanBaseName+".upload.json")
-		if _, err := os.Stat(uploadJson); err == nil {
-			uploadFile = uploadJson
+		var errorFile string
+		var ingestID string
+
+		switch status {
+		case StatusIncoming:
+			uploadJson := filepath.Join(ocflF, cleanBaseName+".upload.json")
+			if _, err := os.Stat(uploadJson); err == nil {
+				uploadFile = uploadJson
+			} else {
+				ingestJson := filepath.Join(ocflF, cleanBaseName+"_ona.json")
+				if _, err := os.Stat(ingestJson); err == nil {
+					uploadFile = ingestJson
+				} else {
+					legacyJson := filepath.Join(ocflF, cleanBaseName+".json")
+					if _, err := os.Stat(legacyJson); err == nil {
+						uploadFile = legacyJson
+					}
+				}
+			}
+		case StatusError:
+			errLog := filepath.Join(folder, cleanBaseName+".log")
+			if _, err := os.Stat(errLog); err == nil {
+				errorFile = errLog
+			} else {
+				errLog = filepath.Join(folder, baseName+".log")
+				if _, err := os.Stat(errLog); err == nil {
+					errorFile = errLog
+				}
+			}
+		case StatusArchived:
+			archivedJson := filepath.Join(folder, cleanBaseName+"_ona.json")
+			if data, err := os.ReadFile(archivedJson); err == nil {
+				ingestID = ExtractIngestID(data)
+			} else {
+				archivedJson = filepath.Join(folder, baseName+"_ona.json")
+				if data, err := os.ReadFile(archivedJson); err == nil {
+					ingestID = ExtractIngestID(data)
+				}
+			}
 		}
 
 		jobs = append(jobs, Job{
 			BaseName:       baseName,
 			Batch:          batchName,
+			Status:         status,
+			IncomingFolder: folderPath,
 			InfoFile:       infoPath,
 			DataFolder:     dataPath,
 			MetadataFolder: metadataPath,
 			OcflFile:       ocflFile,
 			ReportFile:     reportFile,
 			UploadFile:     uploadFile,
+			ErrorFile:      errorFile,
+			IngestID:       ingestID,
 			Signature:      meta.Signature,
 			Title:          meta.Title,
 		})
 	}
 
 	return jobs, nil
+}
+
+// GetSignatures scans the batch's incoming, error, and archived folders for jobs, parsing metadata (info.json)
+// and locating associated OCFL containers, reports, error logs, and ingest IDs.
+func GetSignatures(batchName, inputF, ocflF, reportF, errorF, archivedF string, logger zerolog.Logger) ([]Job, error) {
+	var allJobs []Job
+
+	incomingJobs, err := scanDirectory(batchName, inputF, ocflF, reportF, StatusIncoming, logger)
+	if err != nil {
+		return nil, err
+	}
+	allJobs = append(allJobs, incomingJobs...)
+
+	errorJobs, err := scanDirectory(batchName, errorF, ocflF, reportF, StatusError, logger)
+	if err != nil {
+		return nil, err
+	}
+	allJobs = append(allJobs, errorJobs...)
+
+	archivedJobs, err := scanDirectory(batchName, archivedF, ocflF, reportF, StatusArchived, logger)
+	if err != nil {
+		return nil, err
+	}
+	allJobs = append(allJobs, archivedJobs...)
+
+	return allJobs, nil
 }
