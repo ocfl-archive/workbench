@@ -12,7 +12,9 @@ import (
 
 // GOCFLConfig holds configuration specific to gocfl command-line executions.
 type GOCFLConfig struct {
-	Config string `toml:"config"`
+	Config      string `toml:"config"`
+	LargeConfig string `toml:"largeconfig"`
+	LargeLimit  int    `toml:"largelimit"`
 }
 
 // ONAConfig holds configuration specific to ona command-line executions.
@@ -65,6 +67,62 @@ func (c *WBConfig) GetErrorFolder(batch string) string {
 // GetArchivedFolder returns the archive destination directory for the given batch.
 func (c *WBConfig) GetArchivedFolder(batch string) string {
 	return c.resolvePath(c.Archived, batch, "archived")
+}
+
+// CountFiles returns the total number of non-directory files found recursively within the specified folder.
+// If the folder is empty string or does not exist, it returns 0.
+func CountFiles(folder string) (int, error) {
+	if folder == "" {
+		return 0, nil
+	}
+	fi, err := os.Stat(folder)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if !fi.IsDir() {
+		return 0, fmt.Errorf("path '%s' is not a directory", folder)
+	}
+	count := 0
+	err = filepath.WalkDir(folder, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			count++
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// GetConfig returns the appropriate gocfl configuration file path based on the file count in dataFolder.
+// If dataFolder contains more than LargeLimit files and LargeConfig is set, LargeConfig is returned;
+// otherwise Config is returned.
+func (c *GOCFLConfig) GetConfig(dataFolder string) string {
+	if c == nil {
+		return ""
+	}
+	if c.LargeLimit > 0 && c.LargeConfig != "" && dataFolder != "" {
+		count, err := CountFiles(dataFolder)
+		if err == nil && count > c.LargeLimit {
+			return c.LargeConfig
+		}
+	}
+	return c.Config
+}
+
+// GetGOCFLConfig returns the appropriate gocfl configuration file path based on the file count in dataFolder.
+func (c *WBConfig) GetGOCFLConfig(dataFolder string) string {
+	if c == nil {
+		return ""
+	}
+	return c.Gocfl.GetConfig(dataFolder)
 }
 
 // LoadConfig loads and decodes the workbench configuration from the specified file path,

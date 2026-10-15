@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -89,6 +90,8 @@ ocfl = "C:/data/batches/{batch}/ocfl/"
 
 [gocfl]
 config = "C:/gocfl/config.toml"
+largeconfig = "C:/gocfl/largeconfig.toml"
+largelimit = 50
 
 [ona]
 config = "C:/ona/config.yml"
@@ -105,7 +108,97 @@ config = "C:/ona/config.yml"
 	if conf.Gocfl.Config != "C:/gocfl/config.toml" {
 		t.Errorf("conf.Gocfl.Config = %v, want C:/gocfl/config.toml", conf.Gocfl.Config)
 	}
+	if conf.Gocfl.LargeConfig != "C:/gocfl/largeconfig.toml" {
+		t.Errorf("conf.Gocfl.LargeConfig = %v, want C:/gocfl/largeconfig.toml", conf.Gocfl.LargeConfig)
+	}
+	if conf.Gocfl.LargeLimit != 50 {
+		t.Errorf("conf.Gocfl.LargeLimit = %v, want 50", conf.Gocfl.LargeLimit)
+	}
 	if conf.Ona.Config != "C:/ona/config.yml" {
 		t.Errorf("conf.Ona.Config = %v, want C:/ona/config.yml", conf.Ona.Config)
+	}
+}
+
+func TestGetGOCFLConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	dataDir := filepath.Join(tempDir, "data")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatalf("failed to create data dir: %v", err)
+	}
+
+	conf := &WBConfig{
+		Gocfl: GOCFLConfig{
+			Config:      "C:/gocfl/normal.toml",
+			LargeConfig: "C:/gocfl/large.toml",
+			LargeLimit:  3,
+		},
+	}
+
+	// 0 files: should return normal config
+	if got := conf.GetGOCFLConfig(dataDir); got != "C:/gocfl/normal.toml" {
+		t.Errorf("GetGOCFLConfig() with 0 files = %v, want %v", got, "C:/gocfl/normal.toml")
+	}
+
+	// 3 files (<= LargeLimit): should return normal config
+	for i := 1; i <= 3; i++ {
+		filePath := filepath.Join(dataDir, fmt.Sprintf("file%d.txt", i))
+		if err := os.WriteFile(filePath, []byte("content"), 0644); err != nil {
+			t.Fatalf("failed to create test file: %v", err)
+		}
+	}
+	if got := conf.GetGOCFLConfig(dataDir); got != "C:/gocfl/normal.toml" {
+		t.Errorf("GetGOCFLConfig() with 3 files = %v, want %v", got, "C:/gocfl/normal.toml")
+	}
+
+	// 4 files (> LargeLimit): should return large config
+	subDir := filepath.Join(dataDir, "nested")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("failed to create sub dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "file4.txt"), []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to create nested file: %v", err)
+	}
+
+	if got := conf.GetGOCFLConfig(dataDir); got != "C:/gocfl/large.toml" {
+		t.Errorf("GetGOCFLConfig() with 4 files = %v, want %v", got, "C:/gocfl/large.toml")
+	}
+
+	// Non-existent data folder: should fallback to normal config
+	if got := conf.GetGOCFLConfig(filepath.Join(tempDir, "nonexistent")); got != "C:/gocfl/normal.toml" {
+		t.Errorf("GetGOCFLConfig() nonexistent folder = %v, want %v", got, "C:/gocfl/normal.toml")
+	}
+
+	// Empty data folder path: should return normal config
+	if got := conf.GetGOCFLConfig(""); got != "C:/gocfl/normal.toml" {
+		t.Errorf("GetGOCFLConfig(\"\") = %v, want %v", got, "C:/gocfl/normal.toml")
+	}
+
+	// Nil config: should return empty string
+	var nilConf *WBConfig
+	if got := nilConf.GetGOCFLConfig(dataDir); got != "" {
+		t.Errorf("nilConf.GetGOCFLConfig() = %v, want empty string", got)
+	}
+
+	// LargeConfig is empty: should fallback to Config even if count > LargeLimit
+	confNoLargeConfig := &WBConfig{
+		Gocfl: GOCFLConfig{
+			Config:     "C:/gocfl/normal.toml",
+			LargeLimit: 2,
+		},
+	}
+	if got := confNoLargeConfig.GetGOCFLConfig(dataDir); got != "C:/gocfl/normal.toml" {
+		t.Errorf("confNoLargeConfig.GetGOCFLConfig() = %v, want %v", got, "C:/gocfl/normal.toml")
+	}
+
+	// LargeLimit is 0: should return normal Config
+	confZeroLimit := &WBConfig{
+		Gocfl: GOCFLConfig{
+			Config:      "C:/gocfl/normal.toml",
+			LargeConfig: "C:/gocfl/large.toml",
+			LargeLimit:  0,
+		},
+	}
+	if got := confZeroLimit.GetGOCFLConfig(dataDir); got != "C:/gocfl/normal.toml" {
+		t.Errorf("confZeroLimit.GetGOCFLConfig() = %v, want %v", got, "C:/gocfl/normal.toml")
 	}
 }

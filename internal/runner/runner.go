@@ -25,14 +25,18 @@ func CreateOCFLCmd(conf *config.WBConfig, j job.Job) (*exec.Cmd, error) {
 	}
 
 	zipName := fmt.Sprintf("%s.zip", j.BaseName)
-	cmd := exec.Command("gocfl",
+	args := []string{
 		"create",
 		filepath.Join(ocflDir, zipName),
 		j.DataFolder,
 		fmt.Sprintf("metadata:%s", j.MetadataFolder),
 		"-i", j.Signature,
 		"--ext-NNNN-metafile-source", j.InfoFile,
-	)
+	}
+	if cfg := conf.GetGOCFLConfig(j.DataFolder); cfg != "" {
+		args = append(args, "--config", cfg)
+	}
+	cmd := exec.Command("gocfl", args...)
 	return cmd, nil
 }
 
@@ -50,14 +54,18 @@ func CreateReportCmd(conf *config.WBConfig, j job.Job, port int) (*exec.Cmd, err
 	zipName := fmt.Sprintf("%s.zip", j.BaseName)
 	pdfName := fmt.Sprintf("%s.pdf", j.BaseName)
 
-	cmd := exec.Command("gocfl",
+	args := []string{
 		"display",
 		filepath.Join(ocflDir, zipName),
 		"--display-fullreport", filepath.Join(reportDir, pdfName),
 		"--display-id", j.Signature,
 		"-a", fmt.Sprintf("localhost:%d", port),
 		"-e", fmt.Sprintf("http://localhost:%d", port),
-	)
+	}
+	if cfg := conf.GetGOCFLConfig(j.DataFolder); cfg != "" {
+		args = append(args, "--config", cfg)
+	}
+	cmd := exec.Command("gocfl", args...)
 	return cmd, nil
 }
 
@@ -69,10 +77,14 @@ func ValidateOCFLCmd(conf *config.WBConfig, j job.Job) (*exec.Cmd, error) {
 	ocflDir := conf.GetOcflFolder(j.Batch)
 	zipName := fmt.Sprintf("%s.zip", j.BaseName)
 
-	cmd := exec.Command("gocfl",
+	args := []string{
 		"validate",
 		filepath.Join(ocflDir, zipName),
-	)
+	}
+	if cfg := conf.GetGOCFLConfig(j.DataFolder); cfg != "" {
+		args = append(args, "--config", cfg)
+	}
+	cmd := exec.Command("gocfl", args...)
 	return cmd, nil
 }
 

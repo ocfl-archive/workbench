@@ -21,6 +21,8 @@ archived = "{batch}/archived/"
 
 [gocfl]
 config = "C:/daten/go/dev/gocfl-cli/config/gocfl2.toml"
+largeconfig = "C:/daten/go/dev/gocfl-cli/config/gocfl2_large.toml"
+largelimit = 100
 
 [ona]
 config = "C:/daten/go/dev/workbench/config/ona.yml"
@@ -38,7 +40,9 @@ config = "C:/daten/go/dev/workbench/config/ona.yml"
 | `report` | String | No | Path or template for generated `.pdf` reports. | `{batches}/{batch}/report` |
 | `error` | String | No | Path or template for error logs and failed items. | `{batches}/{batch}/error` |
 | `archived` | String | No | Path or template for finalized/archived packages. | `{batches}/{batch}/archived` |
-| `gocfl.config` | String | No | Path to the `gocfl` TOML configuration file. | None |
+| `gocfl.config` | String | No | Path to the default `gocfl` TOML configuration file. | None |
+| `gocfl.largeconfig` | String | No | Path to the `gocfl` TOML configuration file used when file count in data folder exceeds `largelimit`. | None |
+| `gocfl.largelimit` | Integer | No | Threshold for number of files in the data folder to trigger using `largeconfig`. | `0` (disabled) |
 | `ona.config` | String | No | Path to the `ona` YAML configuration file. | None |
 
 ---

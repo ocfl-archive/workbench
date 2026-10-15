@@ -1045,3 +1045,151 @@ func TestExtractIngestID_Runner(t *testing.T) {
 		t.Errorf("expected error for non-existent file, got nil")
 	}
 }
+
+func TestGOCFLCommands_ConfigSelection(t *testing.T) {
+	tempDir := t.TempDir()
+	batchDir := filepath.Join(tempDir, "batch_test")
+	dataDir := filepath.Join(batchDir, "item1", "data")
+	metaDir := filepath.Join(batchDir, "item1", "metadata")
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatalf("failed to create data dir: %v", err)
+	}
+	if err := os.MkdirAll(metaDir, 0755); err != nil {
+		t.Fatalf("failed to create meta dir: %v", err)
+	}
+
+	conf := &config.WBConfig{
+		Batches: tempDir,
+		Ocfl:    filepath.Join(tempDir, "{batch}", "ocfl"),
+		Report:  filepath.Join(tempDir, "{batch}", "report"),
+		Gocfl: config.GOCFLConfig{
+			Config:      "C:/gocfl/standard.toml",
+			LargeConfig: "C:/gocfl/large.toml",
+			LargeLimit:  2,
+		},
+	}
+
+	j := job.Job{
+		BaseName:       "item1",
+		Batch:          "batch_test",
+		Signature:      "SIG-1",
+		DataFolder:     dataDir,
+		MetadataFolder: metaDir,
+		InfoFile:       filepath.Join(batchDir, "item1", "info.json"),
+	}
+
+	// 1 file (<= LargeLimit 2) -> should use standard config
+	if err := os.WriteFile(filepath.Join(dataDir, "f1.txt"), []byte("data"), 0644); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+
+	createCmd, err := CreateOCFLCmd(conf, j)
+	if err != nil {
+		t.Fatalf("CreateOCFLCmd failed: %v", err)
+	}
+	expectedCreateArgs := []string{
+		"gocfl", "create",
+		filepath.Join(tempDir, "batch_test", "ocfl", "item1.zip"),
+		dataDir,
+		"metadata:" + metaDir,
+		"-i", "SIG-1",
+		"--ext-NNNN-metafile-source", j.InfoFile,
+		"--config", "C:/gocfl/standard.toml",
+	}
+	if len(createCmd.Args) != len(expectedCreateArgs) {
+		t.Fatalf("createCmd.Args len = %d, want %d: %v", len(createCmd.Args), len(expectedCreateArgs), createCmd.Args)
+	}
+	for i := range expectedCreateArgs {
+		if createCmd.Args[i] != expectedCreateArgs[i] {
+			t.Errorf("createCmd.Args[%d] = %s, want %s", i, createCmd.Args[i], expectedCreateArgs[i])
+		}
+	}
+
+	reportCmd, err := CreateReportCmd(conf, j, 8080)
+	if err != nil {
+		t.Fatalf("CreateReportCmd failed: %v", err)
+	}
+	expectedReportArgs := []string{
+		"gocfl", "display",
+		filepath.Join(tempDir, "batch_test", "ocfl", "item1.zip"),
+		"--display-fullreport", filepath.Join(tempDir, "batch_test", "report", "item1.pdf"),
+		"--display-id", "SIG-1",
+		"-a", "localhost:8080",
+		"-e", "http://localhost:8080",
+		"--config", "C:/gocfl/standard.toml",
+	}
+	if len(reportCmd.Args) != len(expectedReportArgs) {
+		t.Fatalf("reportCmd.Args len = %d, want %d: %v", len(reportCmd.Args), len(expectedReportArgs), reportCmd.Args)
+	}
+	for i := range expectedReportArgs {
+		if reportCmd.Args[i] != expectedReportArgs[i] {
+			t.Errorf("reportCmd.Args[%d] = %s, want %s", i, reportCmd.Args[i], expectedReportArgs[i])
+		}
+	}
+
+	valCmd, err := ValidateOCFLCmd(conf, j)
+	if err != nil {
+		t.Fatalf("ValidateOCFLCmd failed: %v", err)
+	}
+	expectedValArgs := []string{
+		"gocfl", "validate",
+		filepath.Join(tempDir, "batch_test", "ocfl", "item1.zip"),
+		"--config", "C:/gocfl/standard.toml",
+	}
+	if len(valCmd.Args) != len(expectedValArgs) {
+		t.Fatalf("valCmd.Args len = %d, want %d: %v", len(valCmd.Args), len(expectedValArgs), valCmd.Args)
+	}
+	for i := range expectedValArgs {
+		if valCmd.Args[i] != expectedValArgs[i] {
+			t.Errorf("valCmd.Args[%d] = %s, want %s", i, valCmd.Args[i], expectedValArgs[i])
+		}
+	}
+
+	// Add 2 more files -> total 3 files (> LargeLimit 2) -> should use large config
+	if err := os.WriteFile(filepath.Join(dataDir, "f2.txt"), []byte("data"), 0644); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "f3.txt"), []byte("data"), 0644); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+
+	createCmdLarge, err := CreateOCFLCmd(conf, j)
+	if err != nil {
+		t.Fatalf("CreateOCFLCmd (large) failed: %v", err)
+	}
+	if createCmdLarge.Args[len(createCmdLarge.Args)-1] != "C:/gocfl/large.toml" {
+		t.Errorf("createCmdLarge last arg = %s, want %s", createCmdLarge.Args[len(createCmdLarge.Args)-1], "C:/gocfl/large.toml")
+	}
+
+	reportCmdLarge, err := CreateReportCmd(conf, j, 9090)
+	if err != nil {
+		t.Fatalf("CreateReportCmd (large) failed: %v", err)
+	}
+	if reportCmdLarge.Args[len(reportCmdLarge.Args)-1] != "C:/gocfl/large.toml" {
+		t.Errorf("reportCmdLarge last arg = %s, want %s", reportCmdLarge.Args[len(reportCmdLarge.Args)-1], "C:/gocfl/large.toml")
+	}
+
+	valCmdLarge, err := ValidateOCFLCmd(conf, j)
+	if err != nil {
+		t.Fatalf("ValidateOCFLCmd (large) failed: %v", err)
+	}
+	if valCmdLarge.Args[len(valCmdLarge.Args)-1] != "C:/gocfl/large.toml" {
+		t.Errorf("valCmdLarge last arg = %s, want %s", valCmdLarge.Args[len(valCmdLarge.Args)-1], "C:/gocfl/large.toml")
+	}
+
+	// Without config specified -> no --config flag added
+	confEmptyGocfl := &config.WBConfig{
+		Batches: tempDir,
+		Ocfl:    filepath.Join(tempDir, "{batch}", "ocfl"),
+		Report:  filepath.Join(tempDir, "{batch}", "report"),
+	}
+	createCmdNoCfg, err := CreateOCFLCmd(confEmptyGocfl, j)
+	if err != nil {
+		t.Fatalf("CreateOCFLCmd without gocfl config failed: %v", err)
+	}
+	for _, arg := range createCmdNoCfg.Args {
+		if arg == "--config" {
+			t.Errorf("did not expect --config flag in %v", createCmdNoCfg.Args)
+		}
+	}
+}
