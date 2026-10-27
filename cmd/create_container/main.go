@@ -38,6 +38,7 @@ func main() {
 
 	// Initialize zerolog to write formatted logs into the pipe
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: errWrite, TimeFormat: time.DateTime}).With().Timestamp().Logger()
+	logger.Info().Msgf("Using config file: %s", conf.ConfigFile)
 
 	app := tview.NewApplication()
 

@@ -27,14 +27,15 @@ type ONAConfig struct {
 
 // WBConfig holds the main configuration for the workbench environment.
 type WBConfig struct {
-	Batches  string      `toml:"batches"`
-	Input    string      `toml:"input"`
-	Ocfl     string      `toml:"ocfl"`
-	Report   string      `toml:"report"`
-	Error    string      `toml:"error"`
-	Archived string      `toml:"archived"`
-	Gocfl    GOCFLConfig `toml:"gocfl"`
-	Ona      ONAConfig   `toml:"ona"`
+	Batches    string      `toml:"batches"`
+	Input      string      `toml:"input"`
+	Ocfl       string      `toml:"ocfl"`
+	Report     string      `toml:"report"`
+	Error      string      `toml:"error"`
+	Archived   string      `toml:"archived"`
+	Gocfl      GOCFLConfig `toml:"gocfl"`
+	Ona        ONAConfig   `toml:"ona"`
+	ConfigFile string      `toml:"-"`
 }
 
 func (c *WBConfig) resolvePath(pattern, batch, fallbackSuffix string) string {
@@ -156,6 +157,8 @@ func LoadConfig(configPath string) (*WBConfig, error) {
 	if _, err := toml.DecodeFile(configPath, &conf); err != nil {
 		return nil, errors.Wrapf(err, "error decoding config file '%s'", configPath)
 	}
+
+	conf.ConfigFile = configPath
 
 	return &conf, nil
 }

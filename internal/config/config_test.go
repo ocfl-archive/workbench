@@ -105,6 +105,10 @@ config = "C:/ona/config.yml"
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 
+	if conf.ConfigFile != tomlPath {
+		t.Errorf("conf.ConfigFile = %v, want %v", conf.ConfigFile, tomlPath)
+	}
+
 	if conf.Gocfl.Config != "C:/gocfl/config.toml" {
 		t.Errorf("conf.Gocfl.Config = %v, want C:/gocfl/config.toml", conf.Gocfl.Config)
 	}
