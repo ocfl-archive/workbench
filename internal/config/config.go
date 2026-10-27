@@ -1,3 +1,6 @@
+// Package config handles loading, parsing, and resolving TOML configuration files
+// for the Workbench application suite. It provides dynamic batch path expansion
+// and automatic selection of gocfl configuration profiles based on item file counts.
 package config
 
 import (

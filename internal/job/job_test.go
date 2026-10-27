@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ocfl-archive/workbench/internal/config"
 	"github.com/rs/zerolog"
 )
 
@@ -534,5 +535,183 @@ func TestExtractIngestID(t *testing.T) {
 				t.Errorf("ExtractIngestID() = %q, want %q", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestJobAvailableActions(t *testing.T) {
+	tests := []struct {
+		name     string
+		job      Job
+		expected []ActionType
+	}{
+		{
+			name: "error status has no actions",
+			job: Job{
+				Status:    StatusError,
+				Signature: "SIG-1",
+			},
+			expected: nil,
+		},
+		{
+			name: "missing signature has no actions",
+			job: Job{
+				Status:    StatusIncoming,
+				Signature: "",
+			},
+			expected: nil,
+		},
+		{
+			name: "archived without ingest id has no actions",
+			job: Job{
+				Status:    StatusArchived,
+				Signature: "SIG-1",
+				IngestID:  "",
+			},
+			expected: nil,
+		},
+		{
+			name: "archived with ingest id has check status action",
+			job: Job{
+				Status:    StatusArchived,
+				Signature: "SIG-1",
+				IngestID:  "12345",
+			},
+			expected: []ActionType{ActionCheckStatus},
+		},
+		{
+			name: "incoming without ocfl file has create ocfl action",
+			job: Job{
+				Status:    StatusIncoming,
+				Signature: "SIG-1",
+				OcflFile:  "",
+			},
+			expected: []ActionType{ActionCreateOCFL},
+		},
+		{
+			name: "incoming with ocfl file but without report has report, validate and ingest",
+			job: Job{
+				Status:     StatusIncoming,
+				Signature:  "SIG-1",
+				OcflFile:   "/path/to/item.zip",
+				ReportFile: "",
+			},
+			expected: []ActionType{ActionCreateReport, ActionValidate, ActionIngest},
+		},
+		{
+			name: "incoming with ocfl and report has validate and ingest",
+			job: Job{
+				Status:     StatusIncoming,
+				Signature:  "SIG-1",
+				OcflFile:   "/path/to/item.zip",
+				ReportFile: "/path/to/item.pdf",
+			},
+			expected: []ActionType{ActionValidate, ActionIngest},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.job.AvailableActions()
+			if len(got) != len(tt.expected) {
+				t.Fatalf("AvailableActions() returned %d actions, want %d: %v", len(got), len(tt.expected), got)
+			}
+			for i := range got {
+				if got[i] != tt.expected[i] {
+					t.Errorf("AvailableActions()[%d] = %v, want %v", i, got[i], tt.expected[i])
+				}
+			}
+		})
+	}
+}
+
+func TestActionTypeLabels(t *testing.T) {
+	cases := map[ActionType]string{
+		ActionCreateOCFL:    "OCFL erstellen",
+		ActionCreateReport:  "Report erstellen",
+		ActionValidate:      "Validate",
+		ActionIngest:        "Ingest",
+		ActionCheckStatus:   "Status abfragen",
+		ActionType("other"): "other",
+	}
+
+	for act, expectedLabel := range cases {
+		if got := act.Label(); got != expectedLabel {
+			t.Errorf("ActionType(%s).Label() = %q, want %q", act, got, expectedLabel)
+		}
+	}
+}
+
+func TestJobExpectedPaths(t *testing.T) {
+	tempDir := t.TempDir()
+	conf := &config.WBConfig{
+		Batches:  tempDir,
+		Ocfl:     filepath.Join(tempDir, "{batch}", "ocfl"),
+		Report:   filepath.Join(tempDir, "{batch}", "report"),
+		Error:    filepath.Join(tempDir, "{batch}", "error"),
+		Archived: filepath.Join(tempDir, "{batch}", "archived"),
+	}
+
+	j := Job{
+		BaseName:  "item_123",
+		Batch:     "batch_a",
+		Signature: "SIG-123",
+	}
+
+	if j.ExpectedZipName() != "item_123.zip" {
+		t.Errorf("ExpectedZipName() = %q, want item_123.zip", j.ExpectedZipName())
+	}
+	if j.ExpectedReportName() != "item_123.pdf" {
+		t.Errorf("ExpectedReportName() = %q, want item_123.pdf", j.ExpectedReportName())
+	}
+	if j.ExpectedResultJsonName() != "item_123_ona.json" {
+		t.Errorf("ExpectedResultJsonName() = %q, want item_123_ona.json", j.ExpectedResultJsonName())
+	}
+	if j.ExpectedUploadJsonName() != "item_123.upload.json" {
+		t.Errorf("ExpectedUploadJsonName() = %q, want item_123.upload.json", j.ExpectedUploadJsonName())
+	}
+	if j.ExpectedErrorLogName() != "item_123.log" {
+		t.Errorf("ExpectedErrorLogName() = %q, want item_123.log", j.ExpectedErrorLogName())
+	}
+
+	expectedZipPath := filepath.Join(tempDir, "batch_a", "ocfl", "item_123.zip")
+	if got := j.ExpectedZipPath(conf); got != expectedZipPath {
+		t.Errorf("ExpectedZipPath() = %q, want %q", got, expectedZipPath)
+	}
+
+	expectedReportPath := filepath.Join(tempDir, "batch_a", "report", "item_123.pdf")
+	if got := j.ExpectedReportPath(conf); got != expectedReportPath {
+		t.Errorf("ExpectedReportPath() = %q, want %q", got, expectedReportPath)
+	}
+
+	expectedResultJsonPath := filepath.Join(tempDir, "batch_a", "ocfl", "item_123_ona.json")
+	if got := j.ExpectedResultJsonPath(conf); got != expectedResultJsonPath {
+		t.Errorf("ExpectedResultJsonPath() = %q, want %q", got, expectedResultJsonPath)
+	}
+
+	expectedUploadPath := filepath.Join(tempDir, "batch_a", "ocfl", "item_123.upload.json")
+	if got := j.ExpectedUploadPath(conf); got != expectedUploadPath {
+		t.Errorf("ExpectedUploadPath() = %q, want %q", got, expectedUploadPath)
+	}
+
+	expectedErrorLogPath := filepath.Join(tempDir, "batch_a", "error", "item_123.log")
+	if got := j.ExpectedErrorLogPath(conf); got != expectedErrorLogPath {
+		t.Errorf("ExpectedErrorLogPath() = %q, want %q", got, expectedErrorLogPath)
+	}
+
+	// Nil config handling
+	if got := j.ExpectedZipPath(nil); got != "" {
+		t.Errorf("ExpectedZipPath(nil) = %q, want empty", got)
+	}
+	if got := j.ExpectedReportPath(nil); got != "" {
+		t.Errorf("ExpectedReportPath(nil) = %q, want empty", got)
+	}
+	if got := j.ExpectedResultJsonPath(nil); got != "" {
+		t.Errorf("ExpectedResultJsonPath(nil) = %q, want empty", got)
+	}
+	if got := j.ExpectedUploadPath(nil); got != "" {
+		t.Errorf("ExpectedUploadPath(nil) = %q, want empty", got)
+	}
+	if got := j.ExpectedErrorLogPath(nil); got != "" {
+		t.Errorf("ExpectedErrorLogPath(nil) = %q, want empty", got)
 	}
 }

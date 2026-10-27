@@ -1,3 +1,5 @@
+// Package util provides filesystem helper functions, directory safety checks,
+// atomic move/copy routines, and TCP port allocation utilities.
 package util
 
 import (

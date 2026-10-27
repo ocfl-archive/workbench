@@ -1,3 +1,9 @@
+// Package main provides the entry point for the create_container CLI application.
+//
+// create_container is an interactive Terminal User Interface (TUI) tool designed
+// for archival workflows. It scans batch directories for digitization units,
+// validates metadata, and coordinates OCFL container creation, PDF report generation,
+// validation, and ingest using gocfl and ona CLI tools.
 package main
 
 import (
@@ -11,11 +17,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// Command-line configuration flags specifying directory paths for inputs and output artifacts.
+// configPath specifies the CLI flag for the path to the workbench TOML configuration file.
 var configPath = flag.String("config", "", "The path to the configuration file")
 
-// main parses CLI arguments, configures log redirection to the TUI log viewer,
-// and starts the application event loop.
+// main initializes configuration, sets up real-time log streaming via an OS pipe,
+// constructs the TUI application layout, and starts the event loop.
 func main() {
 	flag.Parse()
 

@@ -1,3 +1,6 @@
+// Package ui implements the multi-pane Terminal User Interface (TUI) for Workbench,
+// including batch/job navigation lists, detail inspector views, dynamic action buttons,
+// asynchronous modal process execution dialogs, and real-time log viewers.
 package ui
 
 import (
@@ -54,25 +57,18 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 	pages := tview.NewPages()
 
 	// updateDetailAndActions refreshes the detail pane and dynamically adds the appropriate
-	// action buttons ("OCFL erstellen", "Report erstellen", "Validate", "Ingest", "Status abfragen") based on the current job's state.
+	// action buttons based on the current job's available actions.
 	updateDetailAndActions := func(j job.Job) {
 		ShowDetail(j, detailView)
 		buttonFlex.Clear()
 		actionButtons = nil
 
-		if j.Signature == "" {
-			return
-		}
-
-		if j.Status == job.StatusError {
-			// Failed jobs in the error directory have no action buttons
-			return
-		}
-
-		if j.Status == job.StatusArchived {
-			// Archived jobs display a Status check button if an IngestID is available
-			if j.IngestID != "" {
-				btnStatus := tview.NewButton("Status abfragen").SetSelectedFunc(func() {
+		actions := j.AvailableActions()
+		for _, action := range actions {
+			act := action
+			switch act {
+			case job.ActionCheckStatus:
+				btn := tview.NewButton(act.Label()).SetSelectedFunc(func() {
 					cmd, err := runner.StatusOCFLCmd(conf, j.IngestID)
 					if err != nil {
 						logger.Error().Err(err).Msgf("Failed to prepare status query for %s", j.Signature)
@@ -93,53 +89,37 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 						app.SetFocus(jobList)
 					})
 				})
-				actionButtons = append(actionButtons, btnStatus)
-			}
+				actionButtons = append(actionButtons, btn)
 
-			if len(actionButtons) > 0 {
-				buttonFlex.AddItem(nil, 0, 1, false)
-				for i, btn := range actionButtons {
-					if i > 0 {
-						buttonFlex.AddItem(nil, 2, 0, false)
+			case job.ActionCreateOCFL:
+				btn := tview.NewButton(act.Label()).SetSelectedFunc(func() {
+					cmd, err := runner.CreateOCFLCmd(conf, j)
+					if err != nil {
+						logger.Error().Err(err).Msgf("Failed to prepare OCFL creation for %s", j.Signature)
+						return
 					}
-					buttonFlex.AddItem(btn, 20, 0, false)
-				}
-				buttonFlex.AddItem(nil, 0, 1, false)
-			}
-			return
-		}
+					title := fmt.Sprintf(" OCFL Creation: %s ", j.Signature)
+					startMsg := fmt.Sprintf("[yellow]Starting OCFL creation for %s...[white]", j.Signature)
 
-		if j.OcflFile == "" {
-			// OCFL archive is missing: provide button to create OCFL container
-			btn := tview.NewButton("OCFL erstellen").SetSelectedFunc(func() {
-				cmd, err := runner.CreateOCFLCmd(conf, j)
-				if err != nil {
-					logger.Error().Err(err).Msgf("Failed to prepare OCFL creation for %s", j.Signature)
-					return
-				}
-				title := fmt.Sprintf(" OCFL Creation: %s ", j.Signature)
-				startMsg := fmt.Sprintf("[yellow]Starting OCFL creation for %s...[white]", j.Signature)
-
-				RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int, output string) {
-					if exitCode != 0 {
-						logger.Error().Msgf("Failed to create OCFL container for %s (exit code: %d)", j.Signature, exitCode)
-						if err := runner.HandleJobError(conf, j, cmd.String(), output); err != nil {
-							logger.Error().Err(err).Msgf("Failed to handle job error for %s", j.Signature)
+					RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int, output string) {
+						if exitCode != 0 {
+							logger.Error().Msgf("Failed to create OCFL container for %s (exit code: %d)", j.Signature, exitCode)
+							if err := job.HandleJobError(conf, j, cmd.String(), output); err != nil {
+								logger.Error().Err(err).Msgf("Failed to handle job error for %s", j.Signature)
+							}
+						} else {
+							logger.Info().Msgf("OCFL container creation for %s completed successfully", j.Signature)
 						}
-					} else {
-						logger.Info().Msgf("OCFL container creation for %s completed successfully", j.Signature)
-					}
-					if refreshCurrentBatch != nil {
-						refreshCurrentBatch()
-					}
-					app.SetFocus(jobList)
+						if refreshCurrentBatch != nil {
+							refreshCurrentBatch()
+						}
+						app.SetFocus(jobList)
+					})
 				})
-			})
-			actionButtons = append(actionButtons, btn)
-		} else {
-			// OCFL archive exists: provide button to create report if missing, and always provide Validate button
-			if j.ReportFile == "" {
-				btnReport := tview.NewButton("Report erstellen").SetSelectedFunc(func() {
+				actionButtons = append(actionButtons, btn)
+
+			case job.ActionCreateReport:
+				btn := tview.NewButton(act.Label()).SetSelectedFunc(func() {
 					port, err := util.GetFreePort()
 					if err != nil {
 						logger.Error().Err(err).Msg("Failed to get free network port")
@@ -165,79 +145,81 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 						app.SetFocus(jobList)
 					})
 				})
-				actionButtons = append(actionButtons, btnReport)
+				actionButtons = append(actionButtons, btn)
+
+			case job.ActionValidate:
+				btn := tview.NewButton(act.Label()).SetSelectedFunc(func() {
+					cmd, err := runner.ValidateOCFLCmd(conf, j)
+					if err != nil {
+						logger.Error().Err(err).Msgf("Failed to prepare OCFL validation for %s", j.Signature)
+						return
+					}
+					title := fmt.Sprintf(" OCFL Validation: %s ", j.Signature)
+					startMsg := fmt.Sprintf("[yellow]Starting OCFL validation for %s...[white]", j.Signature)
+
+					RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int, output string) {
+						if exitCode != 0 {
+							logger.Error().Msgf("Failed to validate OCFL container for %s (exit code: %d)", j.Signature, exitCode)
+							if err := job.HandleJobError(conf, j, cmd.String(), output); err != nil {
+								logger.Error().Err(err).Msgf("Failed to handle job error for %s", j.Signature)
+							}
+						} else {
+							logger.Info().Msgf("OCFL validation for %s completed successfully", j.Signature)
+						}
+						if refreshCurrentBatch != nil {
+							refreshCurrentBatch()
+						}
+						app.SetFocus(jobList)
+					})
+				})
+				actionButtons = append(actionButtons, btn)
+
+			case job.ActionIngest:
+				btn := tview.NewButton(act.Label()).SetSelectedFunc(func() {
+					cmd, resultJsonPath, err := runner.IngestOCFLCmd(conf, j)
+					if err != nil {
+						logger.Error().Err(err).Msgf("Failed to prepare OCFL ingest for %s", j.Signature)
+						return
+					}
+					title := fmt.Sprintf(" OCFL Ingest: %s ", j.Signature)
+					startMsg := fmt.Sprintf("[yellow]Starting OCFL ingest for %s...[white]", j.Signature)
+
+					RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int, output string) {
+						hasError := exitCode != 0
+						var errMsg string
+						if !hasError {
+							var checkErr error
+							hasError, errMsg, checkErr = job.CheckIngestResult(resultJsonPath)
+							if checkErr != nil {
+								logger.Warn().Err(checkErr).Msgf("Could not evaluate result JSON for %s", j.Signature)
+							}
+						}
+
+						if hasError {
+							if errMsg != "" {
+								logger.Error().Msgf("Failed to ingest OCFL container for %s (error: %s)", j.Signature, errMsg)
+							} else {
+								logger.Error().Msgf("Failed to ingest OCFL container for %s (exit code: %d)", j.Signature, exitCode)
+							}
+							if err := job.HandleIngestError(conf, j, cmd.String(), output, resultJsonPath); err != nil {
+								logger.Error().Err(err).Msgf("Failed to handle ingest error for %s", j.Signature)
+							}
+						} else {
+							logger.Info().Msgf("OCFL ingest for %s completed successfully", j.Signature)
+							if err := job.ArchiveJob(conf, j, resultJsonPath); err != nil {
+								logger.Error().Err(err).Msgf("Failed to archive job for %s", j.Signature)
+							} else {
+								logger.Info().Msgf("Successfully archived job artifacts for %s", j.Signature)
+							}
+						}
+						if refreshCurrentBatch != nil {
+							refreshCurrentBatch()
+						}
+						app.SetFocus(jobList)
+					})
+				})
+				actionButtons = append(actionButtons, btn)
 			}
-
-			btnValidate := tview.NewButton("Validate").SetSelectedFunc(func() {
-				cmd, err := runner.ValidateOCFLCmd(conf, j)
-				if err != nil {
-					logger.Error().Err(err).Msgf("Failed to prepare OCFL validation for %s", j.Signature)
-					return
-				}
-				title := fmt.Sprintf(" OCFL Validation: %s ", j.Signature)
-				startMsg := fmt.Sprintf("[yellow]Starting OCFL validation for %s...[white]", j.Signature)
-
-				RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int, output string) {
-					if exitCode != 0 {
-						logger.Error().Msgf("Failed to validate OCFL container for %s (exit code: %d)", j.Signature, exitCode)
-						if err := runner.HandleJobError(conf, j, cmd.String(), output); err != nil {
-							logger.Error().Err(err).Msgf("Failed to handle job error for %s", j.Signature)
-						}
-					} else {
-						logger.Info().Msgf("OCFL validation for %s completed successfully", j.Signature)
-					}
-					if refreshCurrentBatch != nil {
-						refreshCurrentBatch()
-					}
-					app.SetFocus(jobList)
-				})
-			})
-			actionButtons = append(actionButtons, btnValidate)
-
-			btnIngest := tview.NewButton("Ingest").SetSelectedFunc(func() {
-				cmd, resultJsonPath, err := runner.IngestOCFLCmd(conf, j)
-				if err != nil {
-					logger.Error().Err(err).Msgf("Failed to prepare OCFL ingest for %s", j.Signature)
-					return
-				}
-				title := fmt.Sprintf(" OCFL Ingest: %s ", j.Signature)
-				startMsg := fmt.Sprintf("[yellow]Starting OCFL ingest for %s...[white]", j.Signature)
-
-				RunCommandInModal(app, pages, title, startMsg, cmd, func(exitCode int, output string) {
-					hasError := exitCode != 0
-					var errMsg string
-					if !hasError {
-						var checkErr error
-						hasError, errMsg, checkErr = runner.CheckIngestResult(resultJsonPath)
-						if checkErr != nil {
-							logger.Warn().Err(checkErr).Msgf("Could not evaluate result JSON for %s", j.Signature)
-						}
-					}
-
-					if hasError {
-						if errMsg != "" {
-							logger.Error().Msgf("Failed to ingest OCFL container for %s (error: %s)", j.Signature, errMsg)
-						} else {
-							logger.Error().Msgf("Failed to ingest OCFL container for %s (exit code: %d)", j.Signature, exitCode)
-						}
-						if err := runner.HandleIngestError(conf, j, cmd.String(), output, resultJsonPath); err != nil {
-							logger.Error().Err(err).Msgf("Failed to handle ingest error for %s", j.Signature)
-						}
-					} else {
-						logger.Info().Msgf("OCFL ingest for %s completed successfully", j.Signature)
-						if err := runner.ArchiveJob(conf, j, resultJsonPath); err != nil {
-							logger.Error().Err(err).Msgf("Failed to archive job for %s", j.Signature)
-						} else {
-							logger.Info().Msgf("Successfully archived job artifacts for %s", j.Signature)
-						}
-					}
-					if refreshCurrentBatch != nil {
-						refreshCurrentBatch()
-					}
-					app.SetFocus(jobList)
-				})
-			})
-			actionButtons = append(actionButtons, btnIngest)
 		}
 
 		if len(actionButtons) > 0 {
