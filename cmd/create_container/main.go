@@ -40,13 +40,14 @@ func main() {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: errWrite, TimeFormat: time.DateTime}).With().Timestamp().Logger()
 	logger.Info().Msgf("Using config file: %s", conf.ConfigFile)
 
-	app := tview.NewApplication()
+	app := tview.NewApplication().EnableMouse(false)
 
 	// Build the TUI components, passing the configuration and the read end of the pipe for real-time log streaming
 	bannerView, _ := ui.SetupUI(app, conf, logger, errRead)
 
 	// Display the banner view on startup; SetupUI will switch to the main layout after a short delay
-	if err := app.SetRoot(bannerView, true).Run(); err != nil {
+	app.SetRoot(bannerView, true)
+	if err := app.Run(); err != nil {
 		panic(err)
 	}
 }
