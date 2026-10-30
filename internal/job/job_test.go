@@ -65,6 +65,9 @@ func TestGetSignaturesWithBatch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ocflDir, "job1.zip"), []byte("ocfl-content"), 0644); err != nil {
 		t.Fatalf("failed to write job1 ocfl: %v", err)
 	}
+	if err := os.WriteFile(filepath.Join(ocflDir, "job1.zip.sha512"), []byte("hash-content"), 0644); err != nil {
+		t.Fatalf("failed to write job1 checksum: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(reportDir, "job1.pdf"), []byte("pdf-content"), 0644); err != nil {
 		t.Fatalf("failed to write job1 report: %v", err)
 	}
@@ -100,6 +103,9 @@ func TestGetSignaturesWithBatch(t *testing.T) {
 	}
 	if j.OcflFile == "" {
 		t.Errorf("expected job.OcflFile to be set")
+	}
+	if j.ChecksumFile == "" {
+		t.Errorf("expected job.ChecksumFile to be set")
 	}
 	if j.ReportFile == "" {
 		t.Errorf("expected job.ReportFile to be set")
@@ -660,6 +666,9 @@ func TestJobExpectedPaths(t *testing.T) {
 	if j.ExpectedZipName() != "item_123.zip" {
 		t.Errorf("ExpectedZipName() = %q, want item_123.zip", j.ExpectedZipName())
 	}
+	if j.ExpectedChecksumName() != "item_123.zip.sha512" {
+		t.Errorf("ExpectedChecksumName() = %q, want item_123.zip.sha512", j.ExpectedChecksumName())
+	}
 	if j.ExpectedReportName() != "item_123.pdf" {
 		t.Errorf("ExpectedReportName() = %q, want item_123.pdf", j.ExpectedReportName())
 	}
@@ -676,6 +685,11 @@ func TestJobExpectedPaths(t *testing.T) {
 	expectedZipPath := filepath.Join(tempDir, "batch_a", "ocfl", "item_123.zip")
 	if got := j.ExpectedZipPath(conf); got != expectedZipPath {
 		t.Errorf("ExpectedZipPath() = %q, want %q", got, expectedZipPath)
+	}
+
+	expectedChecksumPath := filepath.Join(tempDir, "batch_a", "ocfl", "item_123.zip.sha512")
+	if got := j.ExpectedChecksumPath(conf); got != expectedChecksumPath {
+		t.Errorf("ExpectedChecksumPath() = %q, want %q", got, expectedChecksumPath)
 	}
 
 	expectedReportPath := filepath.Join(tempDir, "batch_a", "report", "item_123.pdf")
@@ -701,6 +715,9 @@ func TestJobExpectedPaths(t *testing.T) {
 	// Nil config handling
 	if got := j.ExpectedZipPath(nil); got != "" {
 		t.Errorf("ExpectedZipPath(nil) = %q, want empty", got)
+	}
+	if got := j.ExpectedChecksumPath(nil); got != "" {
+		t.Errorf("ExpectedChecksumPath(nil) = %q, want empty", got)
 	}
 	if got := j.ExpectedReportPath(nil); got != "" {
 		t.Errorf("ExpectedReportPath(nil) = %q, want empty", got)

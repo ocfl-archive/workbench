@@ -39,6 +39,9 @@ func ShowDetail(j job.Job, target *tview.TextView) {
 	if j.OcflFile != "" {
 		fmt.Fprintf(target, "[green]OCFL File:[white]       %s\n", j.OcflFile)
 	}
+	if j.ChecksumFile != "" {
+		fmt.Fprintf(target, "[green]Checksum File:[white]   %s\n", j.ChecksumFile)
+	}
 	if j.UploadFile != "" {
 		fmt.Fprintf(target, "[green]Upload File:[white]     %s\n", j.UploadFile)
 	}

@@ -19,6 +19,7 @@ func TestShowDetail(t *testing.T) {
 		DataFolder:     "C:/temp/zhbluzern/raphael_upload/batch_a/incoming/job_1/data",
 		MetadataFolder: "C:/temp/zhbluzern/raphael_upload/batch_a/incoming/job_1/metadata",
 		OcflFile:       "C:/temp/zhbluzern/raphael_upload/batch_a/ocfl/job_1.zip",
+		ChecksumFile:   "C:/temp/zhbluzern/raphael_upload/batch_a/ocfl/job_1.zip.sha512",
 		ReportFile:     "C:/temp/zhbluzern/raphael_upload/batch_a/report/job_1.pdf",
 		UploadFile:     "C:/temp/zhbluzern/raphael_upload/batch_a/ocfl/job_1.upload.json",
 		Signature:      "SIG-1234",
@@ -37,6 +38,7 @@ func TestShowDetail(t *testing.T) {
 		"Metadata Folder: C:/temp/zhbluzern/raphael_upload/batch_a/incoming/job_1/metadata",
 		"Report File:     C:/temp/zhbluzern/raphael_upload/batch_a/report/job_1.pdf",
 		"OCFL File:       C:/temp/zhbluzern/raphael_upload/batch_a/ocfl/job_1.zip",
+		"Checksum File:   C:/temp/zhbluzern/raphael_upload/batch_a/ocfl/job_1.zip.sha512",
 		"Upload File:     C:/temp/zhbluzern/raphael_upload/batch_a/ocfl/job_1.upload.json",
 	}
 

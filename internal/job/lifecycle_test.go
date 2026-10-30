@@ -175,6 +175,10 @@ func TestHandleJobError_Lifecycle(t *testing.T) {
 	if err := os.WriteFile(zipPath, []byte("partial zip"), 0644); err != nil {
 		t.Fatalf("failed to write partial zip: %v", err)
 	}
+	checksumPath := filepath.Join(ocflDir, "item_err.zip.sha512")
+	if err := os.WriteFile(checksumPath, []byte("partial checksum"), 0644); err != nil {
+		t.Fatalf("failed to write partial checksum: %v", err)
+	}
 
 	j := Job{
 		BaseName:       "item_err",
@@ -208,6 +212,11 @@ func TestHandleJobError_Lifecycle(t *testing.T) {
 	if _, err := os.Stat(zipPath); !os.IsNotExist(err) {
 		t.Errorf("expected partial zip to be removed, but stat returned: %v", err)
 	}
+
+	// Verify partial checksum was removed
+	if _, err := os.Stat(checksumPath); !os.IsNotExist(err) {
+		t.Errorf("expected partial checksum to be removed, but stat returned: %v", err)
+	}
 }
 
 func TestArchiveJob_Lifecycle(t *testing.T) {
@@ -236,6 +245,10 @@ func TestArchiveJob_Lifecycle(t *testing.T) {
 	if err := os.WriteFile(zipPath, []byte("ocfl zip content"), 0644); err != nil {
 		t.Fatalf("failed to write zip: %v", err)
 	}
+	checksumPath := filepath.Join(ocflDir, "item_arch.zip.sha512")
+	if err := os.WriteFile(checksumPath, []byte("checksum content"), 0644); err != nil {
+		t.Fatalf("failed to write checksum: %v", err)
+	}
 	statusJsonPath := filepath.Join(ocflDir, "item_arch_ona.json")
 	if err := os.WriteFile(statusJsonPath, []byte(`{"id":"ingest-123"}`), 0644); err != nil {
 		t.Fatalf("failed to write status json: %v", err)
@@ -260,6 +273,10 @@ func TestArchiveJob_Lifecycle(t *testing.T) {
 	dstZip := filepath.Join(archDir, "item_arch.zip")
 	if fi, err := os.Stat(dstZip); err != nil || fi.IsDir() {
 		t.Errorf("zip was not moved to archived folder: %v", err)
+	}
+	dstChecksum := filepath.Join(archDir, "item_arch.zip.sha512")
+	if fi, err := os.Stat(dstChecksum); err != nil || fi.IsDir() {
+		t.Errorf("checksum was not moved to archived folder: %v", err)
 	}
 	dstStatus := filepath.Join(archDir, "item_arch_ona.json")
 	if fi, err := os.Stat(dstStatus); err != nil || fi.IsDir() {

@@ -111,8 +111,9 @@ func scanDirectory(batchName, folder, ocflF, reportF string, status JobStatus, l
 
 		cleanBaseName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
 
-		// 3. Check for existing OCFL container (.zip)
+		// 3. Check for existing OCFL container (.zip) and checksum (.sha512)
 		var ocflFile string
+		var checksumFile string
 		switch status {
 		case StatusArchived:
 			ocflZip := filepath.Join(folder, cleanBaseName+".zip")
@@ -124,10 +125,34 @@ func scanDirectory(batchName, folder, ocflF, reportF string, status JobStatus, l
 					ocflFile = ocflZip
 				}
 			}
+
+			candidates := []string{
+				filepath.Join(folder, cleanBaseName+".zip.sha512"),
+				filepath.Join(folder, cleanBaseName+".sha512"),
+				filepath.Join(ocflF, cleanBaseName+".zip.sha512"),
+				filepath.Join(ocflF, cleanBaseName+".sha512"),
+			}
+			for _, candidate := range candidates {
+				if _, err := os.Stat(candidate); err == nil {
+					checksumFile = candidate
+					break
+				}
+			}
 		default:
 			ocflZip := filepath.Join(ocflF, cleanBaseName+".zip")
 			if _, err := os.Stat(ocflZip); err == nil {
 				ocflFile = ocflZip
+			}
+
+			candidates := []string{
+				filepath.Join(ocflF, cleanBaseName+".zip.sha512"),
+				filepath.Join(ocflF, cleanBaseName+".sha512"),
+			}
+			for _, candidate := range candidates {
+				if _, err := os.Stat(candidate); err == nil {
+					checksumFile = candidate
+					break
+				}
 			}
 		}
 
@@ -190,6 +215,7 @@ func scanDirectory(batchName, folder, ocflF, reportF string, status JobStatus, l
 			DataFolder:     dataPath,
 			MetadataFolder: metadataPath,
 			OcflFile:       ocflFile,
+			ChecksumFile:   checksumFile,
 			ReportFile:     reportFile,
 			UploadFile:     uploadFile,
 			ErrorFile:      errorFile,

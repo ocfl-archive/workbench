@@ -144,6 +144,24 @@ func HandleJobError(conf *config.WBConfig, j Job, cmdStr string, output string) 
 		}
 	}
 
+	checksumCandidates := []string{
+		j.ExpectedChecksumPath(conf),
+		ocflZipPath + ".sha512",
+	}
+	if j.ChecksumFile != "" {
+		checksumCandidates = append(checksumCandidates, j.ChecksumFile)
+	}
+	if j.OcflFile != "" {
+		checksumCandidates = append(checksumCandidates, j.OcflFile+".sha512")
+	}
+	for _, csPath := range checksumCandidates {
+		if csPath != "" {
+			if _, err := os.Stat(csPath); err == nil {
+				_ = os.Remove(csPath)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -210,6 +228,27 @@ func ArchiveJob(conf *config.WBConfig, j Job, resultJsonPath string) error {
 		dstZipPath := filepath.Join(archivedDir, filepath.Base(ocflZipPath))
 		if err := util.MoveFile(ocflZipPath, dstZipPath); err != nil {
 			return fmt.Errorf("failed to move OCFL zip '%s' to '%s': %w", ocflZipPath, dstZipPath, err)
+		}
+	}
+
+	// 2b. Move OCFL checksum file (.sha512) to <archived>
+	var checksumCandidates []string
+	if j.ChecksumFile != "" {
+		checksumCandidates = append(checksumCandidates, j.ChecksumFile)
+	}
+	if expectedCs := j.ExpectedChecksumPath(conf); expectedCs != "" {
+		checksumCandidates = append(checksumCandidates, expectedCs)
+	}
+	if ocflZipPath != "" {
+		checksumCandidates = append(checksumCandidates, ocflZipPath+".sha512")
+	}
+	for _, csPath := range checksumCandidates {
+		if fi, err := os.Stat(csPath); err == nil && !fi.IsDir() {
+			dstChecksumPath := filepath.Join(archivedDir, filepath.Base(csPath))
+			if err := util.MoveFile(csPath, dstChecksumPath); err != nil {
+				return fmt.Errorf("failed to move OCFL checksum '%s' to '%s': %w", csPath, dstChecksumPath, err)
+			}
+			break
 		}
 	}
 

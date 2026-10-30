@@ -72,6 +72,8 @@ type Job struct {
 	MetadataFolder string
 	// OcflFile is the path to the generated OCFL .zip container.
 	OcflFile string
+	// ChecksumFile is the path to the generated OCFL .sha512 checksum file.
+	ChecksumFile string
 	// ReportFile is the path to the generated validation .pdf report.
 	ReportFile string
 	// UploadFile is the path to the .upload.json marker file.
@@ -116,6 +118,11 @@ func (j Job) ExpectedZipName() string {
 	return j.BaseName + ".zip"
 }
 
+// ExpectedChecksumName returns the standard OCFL sha512 checksum filename for the job.
+func (j Job) ExpectedChecksumName() string {
+	return j.ExpectedZipName() + ".sha512"
+}
+
 // ExpectedReportName returns the standard validation PDF report filename for the job.
 func (j Job) ExpectedReportName() string {
 	return j.BaseName + ".pdf"
@@ -142,6 +149,14 @@ func (j Job) ExpectedZipPath(conf *config.WBConfig) string {
 		return ""
 	}
 	return filepath.Join(conf.GetOcflFolder(j.Batch), j.ExpectedZipName())
+}
+
+// ExpectedChecksumPath returns the full path where the OCFL sha512 checksum file is stored.
+func (j Job) ExpectedChecksumPath(conf *config.WBConfig) string {
+	if conf == nil {
+		return ""
+	}
+	return filepath.Join(conf.GetOcflFolder(j.Batch), j.ExpectedChecksumName())
 }
 
 // ExpectedReportPath returns the full path where the validation PDF report is stored.
