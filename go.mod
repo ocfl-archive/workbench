@@ -19,7 +19,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
-	golang.org/x/term v0.47.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
+	golang.org/x/term v0.48.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 )
