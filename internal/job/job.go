@@ -36,6 +36,8 @@ const (
 	ActionCheckStatus ActionType = "check_status"
 	// ActionRunBatch triggers running the complete batch pipeline for all incoming jobs.
 	ActionRunBatch ActionType = "run_batch"
+	// ActionReset restores a failed job to its initial incoming state.
+	ActionReset ActionType = "reset"
 )
 
 // Label returns the human-readable UI button label for the action.
@@ -53,6 +55,8 @@ func (a ActionType) Label() string {
 		return "Status abfragen"
 	case ActionRunBatch:
 		return "Batch durchführen"
+	case ActionReset:
+		return "Zurücksetzen"
 	default:
 		return string(a)
 	}
@@ -94,8 +98,11 @@ type Job struct {
 
 // AvailableActions returns the list of actions permitted for the job given its current state.
 func (j Job) AvailableActions() []ActionType {
-	if j.Signature == "" || j.Status == StatusError {
+	if j.Signature == "" {
 		return nil
+	}
+	if j.Status == StatusError {
+		return []ActionType{ActionReset}
 	}
 	if j.Status == StatusArchived {
 		if j.IngestID != "" {

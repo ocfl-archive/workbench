@@ -551,10 +551,18 @@ func TestJobAvailableActions(t *testing.T) {
 		expected []ActionType
 	}{
 		{
-			name: "error status has no actions",
+			name: "error status has reset action",
 			job: Job{
 				Status:    StatusError,
 				Signature: "SIG-1",
+			},
+			expected: []ActionType{ActionReset},
+		},
+		{
+			name: "error status without signature has no actions",
+			job: Job{
+				Status:    StatusError,
+				Signature: "",
 			},
 			expected: nil,
 		},
@@ -638,6 +646,7 @@ func TestActionTypeLabels(t *testing.T) {
 		ActionIngest:        "Ingest",
 		ActionCheckStatus:   "Status abfragen",
 		ActionRunBatch:      "Batch durchführen",
+		ActionReset:         "Zurücksetzen",
 		ActionType("other"): "other",
 	}
 

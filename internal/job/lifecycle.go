@@ -286,3 +286,114 @@ func ArchiveJob(conf *config.WBConfig, j Job, resultJsonPath string) error {
 
 	return nil
 }
+
+// ResetJob restores a failed job from the error folder back to the incoming folder,
+// removes any error log, ingest status JSON, and leftover OCFL / checksum / report artifacts,
+// returning the job to its initial clean state ready for reprocessing.
+func ResetJob(conf *config.WBConfig, j Job) error {
+	if conf == nil {
+		return fmt.Errorf("configuration cannot be nil")
+	}
+
+	inputDir := conf.GetInputFolder(j.Batch)
+	if err := util.EnsureTargetDirectory(inputDir); err != nil {
+		return fmt.Errorf("failed to ensure incoming target directory '%s': %w", inputDir, err)
+	}
+
+	// 1. Move error job directory back to incoming
+	srcJobDir := filepath.Join(conf.GetErrorFolder(j.Batch), j.BaseName)
+	if j.IncomingFolder != "" {
+		srcJobDir = j.IncomingFolder
+	}
+	dstJobDir := filepath.Join(inputDir, j.BaseName)
+
+	if fi, err := os.Stat(srcJobDir); err == nil && fi.IsDir() {
+		if err := util.MoveDirectory(srcJobDir, dstJobDir); err != nil {
+			return fmt.Errorf("failed to move job directory from '%s' to '%s': %w", srcJobDir, dstJobDir, err)
+		}
+	}
+
+	// 2. Move external info JSON from error directory back to incoming if present
+	externalInfoJson := filepath.Join(conf.GetErrorFolder(j.Batch), fmt.Sprintf("%s.json", j.BaseName))
+	if fi, err := os.Stat(externalInfoJson); err == nil && !fi.IsDir() {
+		dstExternalInfoJson := filepath.Join(inputDir, filepath.Base(externalInfoJson))
+		if err := util.MoveFile(externalInfoJson, dstExternalInfoJson); err != nil {
+			return fmt.Errorf("failed to move external info JSON '%s' to '%s': %w", externalInfoJson, dstExternalInfoJson, err)
+		}
+	}
+
+	// 3. Remove error log file from error directory
+	logFilePath := j.ExpectedErrorLogPath(conf)
+	if _, err := os.Stat(logFilePath); err == nil {
+		_ = os.Remove(logFilePath)
+	}
+	if j.ErrorFile != "" && j.ErrorFile != logFilePath {
+		if _, err := os.Stat(j.ErrorFile); err == nil {
+			_ = os.Remove(j.ErrorFile)
+		}
+	}
+
+	// 4. Remove any ingest status / result JSON from error directory
+	errorResultJson := filepath.Join(conf.GetErrorFolder(j.Batch), j.ExpectedResultJsonName())
+	if _, err := os.Stat(errorResultJson); err == nil {
+		_ = os.Remove(errorResultJson)
+	}
+
+	// 5. Clean up any leftover OCFL zip file
+	ocflZipPath := j.ExpectedZipPath(conf)
+	if _, err := os.Stat(ocflZipPath); err == nil {
+		_ = os.Remove(ocflZipPath)
+	}
+	if j.OcflFile != "" && j.OcflFile != ocflZipPath {
+		if _, err := os.Stat(j.OcflFile); err == nil {
+			_ = os.Remove(j.OcflFile)
+		}
+	}
+
+	// 6. Clean up any leftover checksum files
+	checksumCandidates := []string{
+		j.ExpectedChecksumPath(conf),
+		ocflZipPath + ".sha512",
+	}
+	if j.ChecksumFile != "" {
+		checksumCandidates = append(checksumCandidates, j.ChecksumFile)
+	}
+	if j.OcflFile != "" {
+		checksumCandidates = append(checksumCandidates, j.OcflFile+".sha512")
+	}
+	for _, csPath := range checksumCandidates {
+		if csPath != "" {
+			if _, err := os.Stat(csPath); err == nil {
+				_ = os.Remove(csPath)
+			}
+		}
+	}
+
+	// 7. Clean up any leftover upload marker or result JSON in OCFL folder
+	uploadPath := j.ExpectedUploadPath(conf)
+	if _, err := os.Stat(uploadPath); err == nil {
+		_ = os.Remove(uploadPath)
+	}
+	if j.UploadFile != "" && j.UploadFile != uploadPath {
+		if _, err := os.Stat(j.UploadFile); err == nil {
+			_ = os.Remove(j.UploadFile)
+		}
+	}
+	ocflResultJson := j.ExpectedResultJsonPath(conf)
+	if _, err := os.Stat(ocflResultJson); err == nil {
+		_ = os.Remove(ocflResultJson)
+	}
+
+	// 8. Clean up any leftover report file in report folder
+	reportPath := j.ExpectedReportPath(conf)
+	if _, err := os.Stat(reportPath); err == nil {
+		_ = os.Remove(reportPath)
+	}
+	if j.ReportFile != "" && j.ReportFile != reportPath {
+		if _, err := os.Stat(j.ReportFile); err == nil {
+			_ = os.Remove(j.ReportFile)
+		}
+	}
+
+	return nil
+}

@@ -67,6 +67,20 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 		for _, action := range actions {
 			act := action
 			switch act {
+			case job.ActionReset:
+				btn := tview.NewButton(act.Label()).SetSelectedFunc(func() {
+					if err := job.ResetJob(conf, j); err != nil {
+						logger.Error().Err(err).Msgf("Failed to reset job %s", j.Signature)
+					} else {
+						logger.Info().Msgf("Job %s successfully reset to initial incoming state", j.Signature)
+					}
+					if refreshCurrentBatch != nil {
+						refreshCurrentBatch()
+					}
+					app.SetFocus(jobList)
+				})
+				actionButtons = append(actionButtons, btn)
+
 			case job.ActionCheckStatus:
 				btn := tview.NewButton(act.Label()).SetSelectedFunc(func() {
 					cmd, err := runner.StatusOCFLCmd(conf, j.IngestID)
