@@ -637,6 +637,7 @@ func TestActionTypeLabels(t *testing.T) {
 		ActionValidate:      "Validate",
 		ActionIngest:        "Ingest",
 		ActionCheckStatus:   "Status abfragen",
+		ActionRunBatch:      "Batch durchführen",
 		ActionType("other"): "other",
 	}
 

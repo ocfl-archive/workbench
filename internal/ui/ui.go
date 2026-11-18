@@ -222,6 +222,25 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 			}
 		}
 
+		// Add "Batch durchführen" action button for batch-wide execution
+		batchBtn := tview.NewButton(job.ActionRunBatch.Label()).SetSelectedFunc(func() {
+			batchName := j.Batch
+			if batchName == "" && batchList.GetCurrentItem() >= 0 {
+				batchName, _ = batchList.GetItemText(batchList.GetCurrentItem())
+			}
+			if batchName == "" {
+				logger.Warn().Msg("No batch selected for batch execution")
+				return
+			}
+			RunBatchInModal(app, pages, conf, batchName, logger, func() {
+				if refreshCurrentBatch != nil {
+					refreshCurrentBatch()
+				}
+				app.SetFocus(jobList)
+			})
+		})
+		actionButtons = append(actionButtons, batchBtn)
+
 		if len(actionButtons) > 0 {
 			buttonFlex.AddItem(nil, 0, 1, false)
 			for i, btn := range actionButtons {

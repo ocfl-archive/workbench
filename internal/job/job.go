@@ -34,6 +34,8 @@ const (
 	ActionIngest ActionType = "ingest"
 	// ActionCheckStatus triggers polling the ingest status from ONA using the IngestID.
 	ActionCheckStatus ActionType = "check_status"
+	// ActionRunBatch triggers running the complete batch pipeline for all incoming jobs.
+	ActionRunBatch ActionType = "run_batch"
 )
 
 // Label returns the human-readable UI button label for the action.
@@ -49,6 +51,8 @@ func (a ActionType) Label() string {
 		return "Ingest"
 	case ActionCheckStatus:
 		return "Status abfragen"
+	case ActionRunBatch:
+		return "Batch durchführen"
 	default:
 		return string(a)
 	}
