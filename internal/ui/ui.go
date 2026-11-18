@@ -56,6 +56,35 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 
 	pages := tview.NewPages()
 
+	// Batch action button placed below the batch list
+	batchButton := tview.NewButton(job.ActionRunBatch.Label()).SetSelectedFunc(func() {
+		batchName := ""
+		if index := batchList.GetCurrentItem(); index >= 0 {
+			batchName, _ = batchList.GetItemText(index)
+		}
+		if batchName == "" {
+			logger.Warn().Msg("No batch selected for batch execution")
+			return
+		}
+		RunBatchInModal(app, pages, conf, batchName, logger, func() {
+			if refreshCurrentBatch != nil {
+				refreshCurrentBatch()
+			}
+			app.SetFocus(jobList)
+		})
+	})
+
+	batchButtonFlex := tview.NewFlex().
+		SetDirection(tview.FlexColumn).
+		AddItem(nil, 0, 1, false).
+		AddItem(batchButton, 20, 0, false).
+		AddItem(nil, 0, 1, false)
+
+	batchFlex := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(batchList, 0, 1, true).
+		AddItem(batchButtonFlex, 3, 0, false)
+
 	// updateDetailAndActions refreshes the detail pane and dynamically adds the appropriate
 	// action buttons based on the current job's available actions.
 	updateDetailAndActions := func(j job.Job) {
@@ -236,25 +265,6 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 			}
 		}
 
-		// Add "Batch durchführen" action button for batch-wide execution
-		batchBtn := tview.NewButton(job.ActionRunBatch.Label()).SetSelectedFunc(func() {
-			batchName := j.Batch
-			if batchName == "" && batchList.GetCurrentItem() >= 0 {
-				batchName, _ = batchList.GetItemText(batchList.GetCurrentItem())
-			}
-			if batchName == "" {
-				logger.Warn().Msg("No batch selected for batch execution")
-				return
-			}
-			RunBatchInModal(app, pages, conf, batchName, logger, func() {
-				if refreshCurrentBatch != nil {
-					refreshCurrentBatch()
-				}
-				app.SetFocus(jobList)
-			})
-		})
-		actionButtons = append(actionButtons, batchBtn)
-
 		if len(actionButtons) > 0 {
 			buttonFlex.AddItem(nil, 0, 1, false)
 			for i, btn := range actionButtons {
@@ -358,7 +368,7 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 	// Upper layout section: Batches (left) | Jobs (middle) | Details + Actions (right)
 	upperFlex := tview.NewFlex().
 		SetDirection(tview.FlexColumn).
-		AddItem(batchList, 0, 2, true).
+		AddItem(batchFlex, 0, 2, true).
 		AddItem(jobList, 0, 3, false).
 		AddItem(detailFlex, 0, 5, false)
 
@@ -398,6 +408,8 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 
 		case tcell.KeyTab:
 			if app.GetFocus() == batchList {
+				app.SetFocus(batchButton)
+			} else if app.GetFocus() == batchButton {
 				app.SetFocus(jobList)
 			} else if app.GetFocus() == jobList {
 				focusDetail()
@@ -432,6 +444,8 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 					app.SetFocus(jobList)
 				}
 			} else if app.GetFocus() == jobList {
+				app.SetFocus(batchButton)
+			} else if app.GetFocus() == batchButton {
 				app.SetFocus(batchList)
 			} else {
 				if len(actionButtons) > 0 {
@@ -443,7 +457,7 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 			return nil
 
 		case tcell.KeyRight:
-			if app.GetFocus() == batchList {
+			if app.GetFocus() == batchList || app.GetFocus() == batchButton {
 				app.SetFocus(jobList)
 				return nil
 			} else if app.GetFocus() == jobList {
@@ -469,6 +483,15 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 				app.SetFocus(jobList)
 				return nil
 			} else if app.GetFocus() == jobList {
+				app.SetFocus(batchList)
+				return nil
+			} else if app.GetFocus() == batchButton {
+				app.SetFocus(batchList)
+				return nil
+			}
+
+		case tcell.KeyUp:
+			if app.GetFocus() == batchButton {
 				app.SetFocus(batchList)
 				return nil
 			}
