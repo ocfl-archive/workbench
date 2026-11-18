@@ -460,7 +460,10 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 			if app.GetFocus() == batchList {
 				app.SetFocus(jobList)
 				return nil
-			} else if app.GetFocus() == jobList || app.GetFocus() == batchButton {
+			} else if app.GetFocus() == jobList {
+				app.SetFocus(batchButton)
+				return nil
+			} else if app.GetFocus() == batchButton {
 				focusDetail()
 				return nil
 			} else {
@@ -480,10 +483,19 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 				}
 			}
 			if isDetailFocused() {
+				app.SetFocus(batchButton)
+				return nil
+			} else if app.GetFocus() == batchButton {
 				app.SetFocus(jobList)
 				return nil
-			} else if app.GetFocus() == jobList || app.GetFocus() == batchButton {
+			} else if app.GetFocus() == jobList {
 				app.SetFocus(batchList)
+				return nil
+			}
+
+		case tcell.KeyDown:
+			if app.GetFocus() == jobList && (jobList.GetItemCount() == 0 || jobList.GetCurrentItem() >= jobList.GetItemCount()-1) {
+				app.SetFocus(batchButton)
 				return nil
 			}
 
