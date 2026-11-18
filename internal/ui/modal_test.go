@@ -151,3 +151,45 @@ func TestUI_SetupUI_IncludesBatchButton(t *testing.T) {
 		t.Errorf("ActionRunBatch.Label() = %q, want 'Batch durchführen'", got)
 	}
 }
+
+func TestRunBatchInModal_WithIncomingJob(t *testing.T) {
+	tempDir := t.TempDir()
+	batchName := "batch_run"
+
+	conf := &config.WBConfig{
+		Batches:  tempDir,
+		Input:    filepath.Join(tempDir, "{batch}", "incoming"),
+		Ocfl:     filepath.Join(tempDir, "{batch}", "ocfl"),
+		Report:   filepath.Join(tempDir, "{batch}", "report"),
+		Error:    filepath.Join(tempDir, "{batch}", "error"),
+		Archived: filepath.Join(tempDir, "{batch}", "archived"),
+		Gocfl: config.GOCFLConfig{
+			Config: "invalid-gocfl-config",
+		},
+	}
+
+	incomingJobDir := filepath.Join(conf.GetInputFolder(batchName), "job_1")
+	if err := os.MkdirAll(incomingJobDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(incomingJobDir, "info.json"), []byte(`{"signature":"SIG-1","title":"Test Title"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pages := tview.NewPages()
+	logger := zerolog.Nop()
+
+	RunBatchInModal(nil, pages, conf, batchName, logger, func() {})
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if pages.HasPage("execModal") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if !pages.HasPage("execModal") {
+		t.Errorf("expected pages to contain 'execModal'")
+	}
+}

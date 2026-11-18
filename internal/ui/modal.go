@@ -235,7 +235,44 @@ func RunBatchInModal(
 						currentJob.OcflFile = currentJob.ExpectedZipPath(conf)
 					}
 
-					// Step 2: Ingest OCFL
+					// Step 2: Validate OCFL
+					queueUpdateDraw(app, func() {
+						fmt.Fprintf(tview.ANSIWriter(modalText), "[yellow]Validiere OCFL-Container für %s...[white]\n", currentJob.Signature)
+						modalText.ScrollToEnd()
+					})
+
+					valCmd, err := runner.ValidateOCFLCmd(conf, currentJob)
+					if err != nil {
+						logger.Error().Err(err).Msgf("Failed to prepare OCFL validation for %s", currentJob.Signature)
+						queueUpdateDraw(app, func() {
+							fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Fehler bei der Vorbereitung der OCFL-Validierung für %s: %v[white]\n\n", currentJob.Signature, err)
+							modalText.ScrollToEnd()
+						})
+						errorCount++
+						continue
+					}
+
+					valExitCode, valOutput := RunCommandStream(app, modalText, valCmd)
+					if valExitCode != 0 {
+						logger.Error().Msgf("Failed to validate OCFL container for %s (exit code: %d)", currentJob.Signature, valExitCode)
+						if err := job.HandleJobError(conf, currentJob, valCmd.String(), valOutput); err != nil {
+							logger.Error().Err(err).Msgf("Failed to handle job error for %s", currentJob.Signature)
+						}
+						queueUpdateDraw(app, func() {
+							fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Fehler bei der OCFL-Validierung für %s (Exit-Code: %d)[white]\n\n", currentJob.Signature, valExitCode)
+							modalText.ScrollToEnd()
+						})
+						errorCount++
+						continue
+					}
+
+					logger.Info().Msgf("OCFL validation for %s completed successfully", currentJob.Signature)
+					queueUpdateDraw(app, func() {
+						fmt.Fprintf(tview.ANSIWriter(modalText), "[green]OCFL-Container für %s erfolgreich validiert.[white]\n", currentJob.Signature)
+						modalText.ScrollToEnd()
+					})
+
+					// Step 3: Ingest OCFL
 					queueUpdateDraw(app, func() {
 						fmt.Fprintf(tview.ANSIWriter(modalText), "[yellow]Starte OCFL-Ingest für %s...[white]\n", currentJob.Signature)
 						modalText.ScrollToEnd()
