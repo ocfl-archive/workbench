@@ -56,7 +56,7 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 
 	pages := tview.NewPages()
 
-	// Batch action button placed below the batch list
+	// Batch action button placed below the job list
 	batchButton := tview.NewButton(job.ActionRunBatch.Label()).SetSelectedFunc(func() {
 		batchName := ""
 		if index := batchList.GetCurrentItem(); index >= 0 {
@@ -80,9 +80,9 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 		AddItem(batchButton, 20, 0, false).
 		AddItem(nil, 0, 1, false)
 
-	batchFlex := tview.NewFlex().
+	jobFlex := tview.NewFlex().
 		SetDirection(tview.FlexRow).
-		AddItem(batchList, 0, 1, true).
+		AddItem(jobList, 0, 1, false).
 		AddItem(batchButtonFlex, 3, 0, false)
 
 	// updateDetailAndActions refreshes the detail pane and dynamically adds the appropriate
@@ -368,8 +368,8 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 	// Upper layout section: Batches (left) | Jobs (middle) | Details + Actions (right)
 	upperFlex := tview.NewFlex().
 		SetDirection(tview.FlexColumn).
-		AddItem(batchFlex, 0, 2, true).
-		AddItem(jobList, 0, 3, false).
+		AddItem(batchList, 0, 2, true).
+		AddItem(jobFlex, 0, 3, false).
 		AddItem(detailFlex, 0, 5, false)
 
 	// Helper to shift focus to the first action button (if present) or the detail text view
@@ -408,10 +408,10 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 
 		case tcell.KeyTab:
 			if app.GetFocus() == batchList {
-				app.SetFocus(batchButton)
-			} else if app.GetFocus() == batchButton {
 				app.SetFocus(jobList)
 			} else if app.GetFocus() == jobList {
+				app.SetFocus(batchButton)
+			} else if app.GetFocus() == batchButton {
 				focusDetail()
 			} else {
 				// If focused on an action button and there is a next action button, advance focus
@@ -441,11 +441,11 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 					}
 				}
 				if !movedPrev {
-					app.SetFocus(jobList)
+					app.SetFocus(batchButton)
 				}
-			} else if app.GetFocus() == jobList {
-				app.SetFocus(batchButton)
 			} else if app.GetFocus() == batchButton {
+				app.SetFocus(jobList)
+			} else if app.GetFocus() == jobList {
 				app.SetFocus(batchList)
 			} else {
 				if len(actionButtons) > 0 {
@@ -457,10 +457,10 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 			return nil
 
 		case tcell.KeyRight:
-			if app.GetFocus() == batchList || app.GetFocus() == batchButton {
+			if app.GetFocus() == batchList {
 				app.SetFocus(jobList)
 				return nil
-			} else if app.GetFocus() == jobList {
+			} else if app.GetFocus() == jobList || app.GetFocus() == batchButton {
 				focusDetail()
 				return nil
 			} else {
@@ -482,17 +482,14 @@ func SetupUI(app *tview.Application, conf *config.WBConfig, logger zerolog.Logge
 			if isDetailFocused() {
 				app.SetFocus(jobList)
 				return nil
-			} else if app.GetFocus() == jobList {
-				app.SetFocus(batchList)
-				return nil
-			} else if app.GetFocus() == batchButton {
+			} else if app.GetFocus() == jobList || app.GetFocus() == batchButton {
 				app.SetFocus(batchList)
 				return nil
 			}
 
 		case tcell.KeyUp:
 			if app.GetFocus() == batchButton {
-				app.SetFocus(batchList)
+				app.SetFocus(jobList)
 				return nil
 			}
 		}
