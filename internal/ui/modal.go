@@ -11,6 +11,7 @@ import (
 	"github.com/ocfl-archive/workbench/internal/config"
 	"github.com/ocfl-archive/workbench/internal/job"
 	"github.com/ocfl-archive/workbench/internal/runner"
+	"github.com/ocfl-archive/workbench/internal/util"
 	"github.com/rivo/tview"
 	"github.com/rs/zerolog"
 )
@@ -196,6 +197,10 @@ func RunBatchInModal(
 					})
 
 					// Step 1: Create OCFL if missing
+					queueUpdateDraw(app, func() {
+						modalText.SetTitle(fmt.Sprintf(" Batch-Verarbeitung: %s [%d/%d] - %s: OCFL ", batchName, idx, len(eligibleJobs), currentJob.Signature))
+					})
+
 					if currentJob.OcflFile == "" {
 						queueUpdateDraw(app, func() {
 							fmt.Fprintf(tview.ANSIWriter(modalText), "[yellow]Erstelle OCFL-Container für %s...[white]\n", currentJob.Signature)
@@ -237,6 +242,7 @@ func RunBatchInModal(
 
 					// Step 2: Validate OCFL
 					queueUpdateDraw(app, func() {
+						modalText.SetTitle(fmt.Sprintf(" Batch-Verarbeitung: %s [%d/%d] - %s: Validate ", batchName, idx, len(eligibleJobs), currentJob.Signature))
 						fmt.Fprintf(tview.ANSIWriter(modalText), "[yellow]Validiere OCFL-Container für %s...[white]\n", currentJob.Signature)
 						modalText.ScrollToEnd()
 					})
@@ -272,8 +278,64 @@ func RunBatchInModal(
 						modalText.ScrollToEnd()
 					})
 
-					// Step 3: Ingest OCFL
+					// Step 3: Create Report if missing
 					queueUpdateDraw(app, func() {
+						modalText.SetTitle(fmt.Sprintf(" Batch-Verarbeitung: %s [%d/%d] - %s: Report ", batchName, idx, len(eligibleJobs), currentJob.Signature))
+					})
+
+					if currentJob.ReportFile == "" {
+						queueUpdateDraw(app, func() {
+							fmt.Fprintf(tview.ANSIWriter(modalText), "[yellow]Erstelle Report für %s...[white]\n", currentJob.Signature)
+							modalText.ScrollToEnd()
+						})
+
+						port, err := util.GetFreePort()
+						if err != nil {
+							logger.Error().Err(err).Msgf("Failed to get free port for report generation for %s", currentJob.Signature)
+							queueUpdateDraw(app, func() {
+								fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Fehler bei der Port-Ermittlung für Report von %s: %v[white]\n\n", currentJob.Signature, err)
+								modalText.ScrollToEnd()
+							})
+							errorCount++
+							continue
+						}
+
+						repCmd, err := runner.CreateReportCmd(conf, currentJob, port)
+						if err != nil {
+							logger.Error().Err(err).Msgf("Failed to prepare report generation for %s", currentJob.Signature)
+							queueUpdateDraw(app, func() {
+								fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Fehler bei der Vorbereitung der Report-Erstellung für %s: %v[white]\n\n", currentJob.Signature, err)
+								modalText.ScrollToEnd()
+							})
+							errorCount++
+							continue
+						}
+
+						repExitCode, repOutput := RunCommandStream(app, modalText, repCmd)
+						if repExitCode != 0 {
+							logger.Error().Msgf("Failed to create report for %s (exit code: %d)", currentJob.Signature, repExitCode)
+							if err := job.HandleJobError(conf, currentJob, repCmd.String(), repOutput); err != nil {
+								logger.Error().Err(err).Msgf("Failed to handle job error for %s", currentJob.Signature)
+							}
+							queueUpdateDraw(app, func() {
+								fmt.Fprintf(tview.ANSIWriter(modalText), "[red]Fehler bei der Report-Erstellung für %s (Exit-Code: %d)[white]\n\n", currentJob.Signature, repExitCode)
+								modalText.ScrollToEnd()
+							})
+							errorCount++
+							continue
+						}
+
+						logger.Info().Msgf("Report generation for %s completed successfully", currentJob.Signature)
+						queueUpdateDraw(app, func() {
+							fmt.Fprintf(tview.ANSIWriter(modalText), "[green]Report für %s erfolgreich erstellt.[white]\n", currentJob.Signature)
+							modalText.ScrollToEnd()
+						})
+						currentJob.ReportFile = currentJob.ExpectedReportPath(conf)
+					}
+
+					// Step 4: Ingest OCFL
+					queueUpdateDraw(app, func() {
+						modalText.SetTitle(fmt.Sprintf(" Batch-Verarbeitung: %s [%d/%d] - %s: Ingest ", batchName, idx, len(eligibleJobs), currentJob.Signature))
 						fmt.Fprintf(tview.ANSIWriter(modalText), "[yellow]Starte OCFL-Ingest für %s...[white]\n", currentJob.Signature)
 						modalText.ScrollToEnd()
 					})
@@ -340,6 +402,7 @@ func RunBatchInModal(
 				}
 
 				queueUpdateDraw(app, func() {
+					modalText.SetTitle(fmt.Sprintf(" Batch-Verarbeitung: %s (Abgeschlossen) ", batchName))
 					fmt.Fprintf(tview.ANSIWriter(modalText), "\n[green]Batch-Verarbeitung abgeschlossen.[white] Verarbeitet: %d (Erfolgreich: [green]%d[white], Fehlerhaft: [red]%d[white])\n", len(eligibleJobs), successCount, errorCount)
 					modalText.ScrollToEnd()
 				})

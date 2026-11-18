@@ -193,3 +193,51 @@ func TestRunBatchInModal_WithIncomingJob(t *testing.T) {
 		t.Errorf("expected pages to contain 'execModal'")
 	}
 }
+
+func TestRunBatchInModal_WithExistingOcflJob(t *testing.T) {
+	tempDir := t.TempDir()
+	batchName := "batch_with_ocfl"
+
+	conf := &config.WBConfig{
+		Batches:  tempDir,
+		Input:    filepath.Join(tempDir, "{batch}", "incoming"),
+		Ocfl:     filepath.Join(tempDir, "{batch}", "ocfl"),
+		Report:   filepath.Join(tempDir, "{batch}", "report"),
+		Error:    filepath.Join(tempDir, "{batch}", "error"),
+		Archived: filepath.Join(tempDir, "{batch}", "archived"),
+		Gocfl: config.GOCFLConfig{
+			Config: "invalid-gocfl-config",
+		},
+	}
+
+	incomingJobDir := filepath.Join(conf.GetInputFolder(batchName), "job_ocfl")
+	if err := os.MkdirAll(incomingJobDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(incomingJobDir, "info.json"), []byte(`{"signature":"SIG-OCFL","title":"OCFL Job"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(conf.GetOcflFolder(batchName), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(conf.GetOcflFolder(batchName), "job_ocfl.zip"), []byte("PK-dummy"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pages := tview.NewPages()
+	logger := zerolog.Nop()
+
+	RunBatchInModal(nil, pages, conf, batchName, logger, func() {})
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if pages.HasPage("execModal") {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if !pages.HasPage("execModal") {
+		t.Errorf("expected pages to contain 'execModal'")
+	}
+}
