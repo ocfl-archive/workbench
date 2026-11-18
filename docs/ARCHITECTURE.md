@@ -1,12 +1,12 @@
 # Workbench Architecture
 
-This document describes the software architecture, package hierarchy, data flows, and design principles of the `create_container` application within the Workbench suite.
+This document describes the software architecture, package hierarchy, data flows, and design principles of the `wb` application within the Workbench suite.
 
 ---
 
 ### System Overview
 
-`create_container` is a terminal-based workbench utility written in Go for managing digital archiving workflows. It scans batch directories for ingest items ("Jobs"), parses item-level metadata, and coordinates the packaging and validation of Oxford Common File Layout (OCFL) containers using the `gocfl` CLI toolchain.
+`wb` is a terminal-based workbench utility written in Go for managing digital archiving workflows. It scans batch directories for ingest items ("Jobs"), parses item-level metadata, and coordinates the packaging and validation of Oxford Common File Layout (OCFL) containers using the `gocfl` CLI toolchain.
 
 The application follows a modular internal package architecture under `internal/`, separating domain scanning, configuration management, subprocess orchestration, and the Terminal User Interface (TUI).
 
@@ -16,7 +16,7 @@ The application follows a modular internal package architecture under `internal/
 
 ```mermaid
 graph TD
-    Main[cmd/create_container/main.go] --> Config[internal/config]
+    Main[cmd/wb/main.go] --> Config[internal/config]
     Main --> UI[internal/ui]
 
     UI --> Job[internal/job]
@@ -35,7 +35,7 @@ graph TD
 
 | Package | Path | Responsibility |
 | :--- | :--- | :--- |
-| **CLI Entry Point** | `cmd/create_container/main.go` | Parses CLI flags, initializes configuration, creates log streaming pipe, and runs the TUI event loop. |
+| **CLI Entry Point** | `../cmd/wb` | Parses CLI flags, initializes configuration, creates log streaming pipe, and runs the TUI event loop. |
 | **Config** | `internal/config` | Loads TOML configurations, discovers default config file locations, and resolves batch-specific dynamic directory paths (`{batch}`). |
 | **Job** | `internal/job` | Defines `Job` and `Info` data structures and scans the filesystem to discover batches, jobs, and associated artifacts (`info.json`, `.zip`, `.pdf`). |
 | **Runner** | `internal/runner` | Constructs `exec.Cmd` instances for `gocfl` CLI invocations (`create`, `display` / report generation, `validate`) and `ona` CLI invocations (`ingest`), as well as recording upload timestamps (`.upload.json`). |

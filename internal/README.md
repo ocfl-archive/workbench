@@ -34,7 +34,7 @@ internal/
 ### Dependency Flow
 
 ```
-cmd/create_container
+cmd/wb
         │
         ├──► internal/config
         └──► internal/ui

@@ -1,6 +1,6 @@
 # Workbench
 
-Workbench is a terminal-based suite of digital preservation workflow tools designed for archivist operations and automated ingest management. The primary application, `create_container`, manages the scanning of incoming digitization batches, parsing metadata, and packaging and validating standard [OCFL (Oxford Common File Layout)](https://ocfl.io/) containers via [`gocfl`](https://github.com/ocfl-archive/gocfl).
+Workbench is a terminal-based suite of digital preservation workflow tools designed for archivist operations and automated ingest management. The primary application, `wb`, manages the scanning of incoming digitization batches, parsing metadata, and packaging and validating standard [OCFL (Oxford Common File Layout)](https://ocfl.io/) containers via [`gocfl`](https://github.com/ocfl-archive/gocfl).
 
 ---
 
@@ -23,12 +23,12 @@ Workbench is a terminal-based suite of digital preservation workflow tools desig
 
 ### Installation & Build
 
-Clone the repository and build the `create_container` executable:
+Clone the repository and build the `wb` executable:
 
 ```bash
 git clone https://github.com/ocfl-archive/workbench.git
 cd workbench
-go build ./cmd/create_container
+go build ./cmd/wb
 ```
 
 To run all unit tests:
@@ -54,12 +54,12 @@ go test -v ./...
    config = "/path/to/gocfl.toml"
    ```
 
-2. Run `create_container`:
+2. Run `wb`:
    ```bash
-   ./create_container -config /path/to/workbench.toml
+   ./wb -config /path/to/workbench.toml
    ```
 
-*(If `-config` is omitted, `create_container` automatically searches `~/wb/workbench.toml`, `/opt/wb/workbench.toml`, and `/etc/wb/workbench.toml`.)*
+*(If `-config` is omitted, `wb` automatically searches `~/wb/workbench.toml`, `/opt/wb/workbench.toml`, and `/etc/wb/workbench.toml`.)*
 
 ---
 

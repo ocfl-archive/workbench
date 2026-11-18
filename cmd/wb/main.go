@@ -1,6 +1,6 @@
-// Package main provides the entry point for the create_container CLI application.
+// Package main provides the entry point for the wb CLI application.
 //
-// create_container is an interactive Terminal User Interface (TUI) tool designed
+// wb is an interactive Terminal User Interface (TUI) tool designed
 // for archival workflows. It scans batch directories for digitization units,
 // validates metadata, and coordinates OCFL container creation, PDF report generation,
 // validation, and ingest using gocfl and ona CLI tools.

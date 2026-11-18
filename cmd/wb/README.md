@@ -1,6 +1,6 @@
-# create_container
+# wb
 
-`create_container` is the primary executable of the Workbench suite. It provides an interactive Terminal User Interface (TUI) to orchestrate digital preservation workflows, including metadata validation, OCFL container creation, PDF report generation, compliance validation, and ingest management.
+`wb` is the primary executable of the Workbench suite. It provides an interactive Terminal User Interface (TUI) to orchestrate digital preservation workflows, including metadata validation, OCFL container creation, PDF report generation, compliance validation, and ingest management.
 
 ---
 
@@ -16,16 +16,16 @@
 
 #### Building the Binary
 ```bash
-go build -o create_container.exe ./cmd/create_container
+go build ./cmd/wb
 ```
 
 #### Running the Application
 ```bash
 # Using explicit configuration file:
-./create_container -config /path/to/workbench.toml
+./wb -config /path/to/workbench.toml
 
 # Using default configuration discovery (~/wb/workbench.toml, /opt/wb/workbench.toml, /etc/wb/workbench.toml):
-./create_container
+./wb
 ```
 
 ---

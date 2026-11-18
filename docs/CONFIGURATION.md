@@ -1,6 +1,6 @@
 # Workbench Configuration Guide
 
-This document describes the configuration file format, parameter specifications, placeholder resolution rules, and default search paths used by Workbench (`create_container`).
+This document describes the configuration file format, parameter specifications, placeholder resolution rules, and default search paths used by Workbench (`wb`).
 
 ---
 
@@ -81,12 +81,12 @@ The folder parameters (`input`, `ocfl`, `report`, `error`, `archived`) support d
 
 ### Configuration Discovery Order
 
-When launching `create_container`, configuration loading follows this precedence order:
+When launching `wb`, configuration loading follows this precedence order:
 
 1. **Explicit CLI Flag:**
    Specified via the `-config` flag:
    ```bash
-   create_container -config /path/to/custom_workbench.toml
+   wb -config /path/to/custom_workbench.toml
    ```
 2. **User Home Directory:**
    `~/wb/workbench.toml` (or `%USERPROFILE%\wb\workbench.toml` on Windows).
@@ -95,4 +95,4 @@ When launching `create_container`, configuration loading follows this precedence
 4. **System Etc Directory:**
    `/etc/wb/workbench.toml`
 
-If no valid configuration file is found in any of these locations, `create_container` exits with an error.
+If no valid configuration file is found in any of these locations, `wb` exits with an error.
