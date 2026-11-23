@@ -65,16 +65,15 @@ func TestRunBatchInModal_EmptyOrFinishedBatch(t *testing.T) {
 
 	pages := tview.NewPages()
 	logger := zerolog.Nop()
+	done := make(chan struct{})
 
-	RunBatchInModal(nil, pages, conf, batchName, logger, func() {})
+	RunBatchInModal(nil, pages, conf, batchName, logger, func() {
+		close(done)
+	})
 
-	// Wait for execModal to be added to pages
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if pages.HasPage("execModal") {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
 	}
 
 	if !pages.HasPage("execModal") {
@@ -97,15 +96,15 @@ func TestRunBatchInModal_MissingFolder(t *testing.T) {
 
 	pages := tview.NewPages()
 	logger := zerolog.Nop()
+	done := make(chan struct{})
 
-	RunBatchInModal(nil, pages, conf, batchName, logger, func() {})
+	RunBatchInModal(nil, pages, conf, batchName, logger, func() {
+		close(done)
+	})
 
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if pages.HasPage("execModal") {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
 	}
 
 	if !pages.HasPage("execModal") {
@@ -178,15 +177,15 @@ func TestRunBatchInModal_WithIncomingJob(t *testing.T) {
 
 	pages := tview.NewPages()
 	logger := zerolog.Nop()
+	done := make(chan struct{})
 
-	RunBatchInModal(nil, pages, conf, batchName, logger, func() {})
+	RunBatchInModal(nil, pages, conf, batchName, logger, func() {
+		close(done)
+	})
 
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if pages.HasPage("execModal") {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
 	}
 
 	if !pages.HasPage("execModal") {
@@ -226,15 +225,15 @@ func TestRunBatchInModal_WithExistingOcflJob(t *testing.T) {
 
 	pages := tview.NewPages()
 	logger := zerolog.Nop()
+	done := make(chan struct{})
 
-	RunBatchInModal(nil, pages, conf, batchName, logger, func() {})
+	RunBatchInModal(nil, pages, conf, batchName, logger, func() {
+		close(done)
+	})
 
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if pages.HasPage("execModal") {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
 	}
 
 	if !pages.HasPage("execModal") {

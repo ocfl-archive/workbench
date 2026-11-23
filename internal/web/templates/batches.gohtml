@@ -1,0 +1,19 @@
+<div class="flex flex-col gap-1.5" id="batches-list">
+    {{range .Batches}}
+    <button
+        type="button"
+        class="btn btn-sm justify-between text-left font-mono {{if eq . $.SelectedBatch}}btn-primary text-primary-content shadow-sm{{else}}btn-ghost hover:bg-base-200/80 text-base-content{{end}} transition-all duration-150"
+        hx-get="/batch/{{.}}"
+        hx-target="#jobs-container"
+        hx-swap="innerHTML"
+        hx-push-url="/?batch={{.}}"
+        onclick="document.querySelectorAll('#batches-list .btn').forEach(b => { b.classList.remove('btn-primary', 'text-primary-content', 'shadow-sm'); b.classList.add('btn-ghost'); }); this.classList.remove('btn-ghost'); this.classList.add('btn-primary', 'text-primary-content', 'shadow-sm');">
+        <span class="truncate">{{.}}</span>
+        <span class="app-icon icon-arrow-right w-3.5 h-3.5 opacity-60"></span>
+    </button>
+    {{else}}
+    <div class="p-4 text-center text-xs text-base-content/50">
+        Keine Batches gefunden
+    </div>
+    {{end}}
+</div>

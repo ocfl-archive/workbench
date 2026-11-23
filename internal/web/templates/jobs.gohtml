@@ -1,0 +1,100 @@
+<div class="flex flex-col h-full gap-3">
+    <!-- Batch Header & Summary Badges -->
+    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-base-200">
+        <div class="flex items-center gap-2">
+            <h3 class="font-bold text-sm tracking-tight flex items-center gap-1.5">
+                <span class="app-icon icon-archive w-4 h-4 text-primary"></span>
+                <span class="font-mono text-base">{{.Batch}}</span>
+            </h3>
+            <span class="badge badge-sm badge-outline font-mono">{{len .Jobs}} Jobs</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs font-mono">
+            {{if .IncomingCount}}<span class="badge badge-sm badge-info badge-soft" title="Incoming">{{.IncomingCount}} in</span>{{end}}
+            {{if .ErrorCount}}<span class="badge badge-sm badge-error badge-soft" title="Fehlerhaft">{{.ErrorCount}} err</span>{{end}}
+            {{if .ArchivedCount}}<span class="badge badge-sm badge-success badge-soft" title="Archiviert">{{.ArchivedCount}} arc</span>{{end}}
+        </div>
+    </div>
+
+    <!-- Filter input -->
+    <div class="relative">
+        <input
+            type="text"
+            id="job-filter-input"
+            placeholder="Jobs filtern (Signatur, Titel)..."
+            class="input input-sm input-bordered w-full text-xs pr-8"
+            oninput="filterJobs(this.value)" />
+        <span class="app-icon icon-search w-3.5 h-3.5 absolute right-2.5 top-2.5 opacity-40"></span>
+    </div>
+
+    <!-- Jobs Scrollable List -->
+    <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-[520px]" id="jobs-list">
+        {{range $index, $job := .Jobs}}
+        <div
+            class="job-item card card-border card-sm bg-base-100 hover:bg-base-200/70 border-base-200 shadow-xs hover:shadow-sm transition-all duration-150 cursor-pointer p-3 select-none group {{if and $.SelectedJob (eq $job.BaseName $.SelectedJob.BaseName)}}ring-2 ring-primary bg-primary/5{{end}}"
+            data-signature="{{$job.Signature}}"
+            data-title="{{$job.Title}}"
+            data-status="{{$job.Status}}"
+            hx-get="/batch/{{$.Batch}}/job/{{$job.BaseName}}"
+            hx-target="#detail-container"
+            hx-swap="innerHTML"
+            onclick="document.querySelectorAll('.job-item').forEach(el => el.classList.remove('ring-2', 'ring-primary', 'bg-primary/5')); this.classList.add('ring-2', 'ring-primary', 'bg-primary/5');">
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-bold text-xs font-mono tracking-tight group-hover:text-primary transition-colors truncate">
+                            {{$job.Signature}}
+                        </span>
+                    </div>
+                    {{if $job.Title}}
+                    <p class="text-[11px] text-base-content/70 truncate mt-0.5" title="{{$job.Title}}">
+                        {{$job.Title}}
+                    </p>
+                    {{end}}
+                </div>
+                <div class="shrink-0">
+                    {{if eq $job.Status "error"}}
+                    <span class="badge badge-xs badge-error gap-1 font-semibold">
+                        <span class="app-icon icon-alert-circle w-2.5 h-2.5"></span>
+                        fehlerhaft
+                    </span>
+                    {{else if eq $job.Status "archived"}}
+                    <span class="badge badge-xs badge-success gap-1 font-semibold">
+                        <span class="app-icon icon-check-circle w-2.5 h-2.5"></span>
+                        archiviert
+                    </span>
+                    {{else}}
+                    <span class="badge badge-xs badge-ghost font-mono opacity-80">
+                        incoming
+                    </span>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+        {{else}}
+        <div class="py-12 text-center text-xs text-base-content/50">
+            Keine Jobs in diesem Batch gefunden
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Batch Action Button Footer -->
+    <div class="pt-3 border-t border-base-200 mt-auto">
+        <button
+            type="button"
+            class="btn btn-sm btn-primary w-full gap-2 shadow-sm font-semibold"
+            hx-post="/batch/{{.Batch}}/run"
+            hx-target="#action-alert"
+            hx-swap="innerHTML"
+            title="Startet die komplette Batch-Pipeline für alle ausstehenden Jobs">
+            <span class="app-icon icon-bolt w-4 h-4"></span>
+            <span>Batch durchführen</span>
+        </button>
+    </div>
+</div>
+
+<!-- Trigger initial detail load if selected job is present -->
+{{if .SelectedJob}}
+<div hx-get="/batch/{{.Batch}}/job/{{.SelectedJob.BaseName}}" hx-target="#detail-container" hx-swap="innerHTML" hx-trigger="load"></div>
+{{else}}
+<div id="detail-empty" class="hidden"></div>
+{{end}}

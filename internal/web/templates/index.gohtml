@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de" translate="no" data-theme="corporate">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+
+    <!-- Early Theme Initializer to prevent layout/color flash -->
+    <script src="/static/js/theme-init.js"></script>
+
+    <!-- Tailwind CSS & DaisyUI -->
+    <link rel="stylesheet" href="/static/css/tailwind.min.css">
+    <link rel="stylesheet" href="/static/css/daisyui.min.css">
+    <link rel="stylesheet" href="/static/css/daisyui-themes.min.css">
+
+    <!-- HTMX 4 & SSE Extension -->
+    <script src="/static/js/htmx-4.0.js"></script>
+    <script src="/static/js/hx-sse.js"></script>
+
+    <!-- Workbench Web Application Logic & Terminal Emulator -->
+    <script src="/static/js/wbweb.js"></script>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-base-200/40 text-base-content p-3 sm:p-5 lg:p-6" hx-ext="sse" sse-connect="/events">
+
+    <!-- Header Navbar -->
+    <header class="navbar w-full max-w-7xl mx-auto mb-4 bg-base-100 border border-base-200 shadow-sm rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 gap-3 text-base-content relative z-30">
+        <div class="flex items-center space-x-3.5 flex-1 min-w-0">
+            <div class="w-11 h-11 rounded-xl bg-primary text-primary-content flex items-center justify-center shadow-md shadow-primary/20 shrink-0">
+                <span class="app-icon icon-archive w-6 h-6"></span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg sm:text-xl font-bold tracking-tight">Workbench</h1>
+                    <span class="badge badge-sm badge-primary badge-outline font-mono">Web GUI</span>
+                </div>
+                <p class="text-xs text-base-content/70 font-mono truncate mt-0.5" title="{{.ConfigFile}}">
+                    Config: <span class="font-semibold">{{.ConfigFile}}</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Top Right Actions: Theme Selector & Terminal Trigger -->
+        <div class="flex items-center space-x-2 shrink-0">
+            <!-- Terminal Modal Trigger Button -->
+            <button
+                type="button"
+                class="btn btn-sm btn-ghost gap-1.5 font-medium"
+                onclick="window.TerminalEmulator.toggleModal(true)"
+                title="Terminal-Emulator und Ausgabeprotokoll öffnen">
+                <span class="app-icon icon-bolt w-4 h-4 text-warning"></span>
+                <span class="hidden sm:inline text-xs">Terminal</span>
+            </button>
+
+            <!-- Theme Mode & DaisyUI Dropdown -->
+            <div class="dropdown dropdown-end">
+                <div tabindex="0" role="button" class="btn btn-sm btn-ghost flex items-center gap-1.5" title="Farbschema &amp; Theme wählen">
+                    <span class="app-icon icon-sun-moon w-4 h-4 shrink-0"></span>
+                    <span class="hidden sm:inline text-xs font-semibold" id="current-theme-name">Theme</span>
+                </div>
+                <ul tabindex="0" class="dropdown-content menu bg-base-100 text-base-content rounded-2xl z-50 w-52 p-2 shadow-xl border border-base-200 space-y-1">
+                    <li class="menu-title text-xs font-bold px-2 py-1 opacity-70">Modus</li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setThemeMode('auto')">Auto (System)</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setThemeMode('light')">Light (Hell)</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setThemeMode('dark')">Dark (Dunkel)</button></li>
+                    <div class="divider my-1"></div>
+                    <li class="menu-title text-xs font-bold px-2 py-1 opacity-70">DaisyUI Themes</li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setAppTheme('corporate')">Corporate</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setAppTheme('dark')">Dark</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setAppTheme('nord')">Nord</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setAppTheme('emerald')">Emerald</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setAppTheme('night')">Night</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setAppTheme('dracula')">Dracula</button></li>
+                    <li><button type="button" class="btn btn-xs btn-ghost justify-start" onclick="setAppTheme('synthwave')">Synthwave</button></li>
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <!-- Global Notification/Alert Container -->
+    <div id="action-alert" class="w-full max-w-7xl mx-auto mb-3 empty:hidden"></div>
+
+    <!-- Main Content 3-Pane Area -->
+    <main class="w-full max-w-7xl mx-auto flex-1 flex flex-col gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 items-stretch">
+
+            <!-- Panel 1: Batches List (lg:col-span-3) -->
+            <section class="card bg-base-100 border border-base-200 shadow-sm rounded-2xl overflow-hidden flex flex-col lg:col-span-3 p-4">
+                <div class="flex items-center justify-between pb-3 mb-2 border-b border-base-200">
+                    <h2 class="text-sm font-bold flex items-center gap-1.5">
+                        <span>Batches</span>
+                    </h2>
+                    <span class="badge badge-sm badge-outline font-mono">{{.TotalBatches}}</span>
+                </div>
+                <div id="batches-container" class="flex-1 overflow-y-auto">
+                    {{template "batches.gohtml" .}}
+                </div>
+            </section>
+
+            <!-- Panel 2: Jobs List (lg:col-span-5) -->
+            <section class="card bg-base-100 border border-base-200 shadow-sm rounded-2xl overflow-hidden flex flex-col lg:col-span-5 p-4">
+                <div id="jobs-container" class="flex-1 flex flex-col">
+                    {{if .SelectedBatch}}
+                    {{template "jobs.gohtml" dict "Batch" .SelectedBatch "Jobs" .Jobs "SelectedJob" .SelectedJob "IncomingCount" .IncomingCount "ErrorCount" .ErrorCount "ArchivedCount" .ArchivedCount}}
+                    {{else}}
+                    <div class="flex flex-col items-center justify-center h-full py-16 text-center text-base-content/50 gap-2">
+                        <span class="app-icon icon-archive w-8 h-8 opacity-40"></span>
+                        <span class="text-xs">Kein Batch ausgewählt</span>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+
+            <!-- Panel 3: Job Detail & Actions (lg:col-span-4) -->
+            <section class="card bg-base-100 border border-base-200 shadow-sm rounded-2xl overflow-hidden flex flex-col lg:col-span-4 p-4">
+                <div id="detail-container" class="flex-1 flex flex-col">
+                    {{if .SelectedJob}}
+                    {{template "detail.gohtml" dict "Job" .SelectedJob}}
+                    {{else}}
+                    <div class="flex flex-col items-center justify-center h-full py-16 text-center text-base-content/50 gap-2">
+                        <span class="app-icon icon-info-circle w-8 h-8 opacity-40"></span>
+                        <span class="text-xs">Wählen Sie einen Job aus der Liste</span>
+                    </div>
+                    {{end}}
+                </div>
+            </section>
+
+        </div>
+
+        <!-- Live Event Log Console Panel -->
+        <section class="card bg-base-100 border border-base-200 shadow-sm rounded-2xl overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-base-200 flex items-center justify-between gap-2 bg-base-200/30">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-success animate-pulse"></span>
+                    <h3 class="text-xs font-bold uppercase tracking-wider opacity-80">Ereignis- &amp; Aktivitätenprotokoll</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" class="btn btn-xs btn-ghost" onclick="document.getElementById('live-log-container').innerHTML = '';">Leeren</button>
+                </div>
+            </div>
+            <div id="live-log-container" class="p-3 font-mono text-xs overflow-y-auto max-h-36 space-y-1 bg-base-300/20" sse-swap="log" hx-swap="beforeend">
+                {{range .History}}
+                <div class="log-line log-{{.Type}} font-mono text-xs leading-relaxed break-all">
+                    <span class="opacity-50">[{{formatTime .Timestamp}}]</span> {{.Text}}
+                </div>
+                {{else}}
+                <div class="text-base-content/40 text-xs italic">[Keine bisherigen Log-Ereignisse]</div>
+                {{end}}
+            </div>
+        </section>
+    </main>
+
+    <!-- Terminal Emulator Modal Dialog -->
+    <dialog id="terminal-modal" class="modal">
+        <div class="modal-box w-11/12 max-w-4xl bg-base-300 text-base-content p-0 rounded-2xl overflow-hidden shadow-2xl border border-base-content/10">
+            <!-- Terminal Header Chrome -->
+            <div class="bg-base-200 px-4 py-3 flex items-center justify-between border-b border-base-content/10 select-none">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-error cursor-pointer" onclick="window.TerminalEmulator.toggleModal(false)"></div>
+                    <div class="w-3 h-3 rounded-full bg-warning"></div>
+                    <div class="w-3 h-3 rounded-full bg-success"></div>
+                    <span class="font-mono text-xs font-semibold ml-2 opacity-75">Workbench Terminal &amp; Command Runner</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label class="label cursor-pointer py-0 gap-1.5 text-xs opacity-80">
+                        <span class="text-[11px]">Auto-Scroll</span>
+                        <input type="checkbox" id="term-autoscroll-toggle" class="checkbox checkbox-xs checkbox-primary" checked />
+                    </label>
+                    <button type="button" id="term-copy-btn" class="btn btn-xs btn-ghost text-xs" onclick="window.TerminalEmulator.copyContent()">Kopieren</button>
+                    <button type="button" class="btn btn-xs btn-ghost text-xs" onclick="window.TerminalEmulator.clear()">Leeren</button>
+                    <button type="button" class="btn btn-xs btn-circle btn-ghost" onclick="window.TerminalEmulator.toggleModal(false)">&times;</button>
+                </div>
+            </div>
+
+            <!-- Terminal Screen / Output Buffer -->
+            <div id="terminal-output" class="p-4 font-mono text-xs leading-relaxed overflow-y-auto max-h-[500px] min-h-[280px] bg-neutral text-neutral-content space-y-1 selection:bg-primary selection:text-primary-content">
+                <div class="text-base-content/40 text-xs italic">
+                    [Terminal bereit. Ausgaben laufender Prozesse werden hier in Echtzeit gestreamt.]
+                </div>
+            </div>
+
+            <!-- Terminal Footer Controls -->
+            <div class="modal-action bg-base-200 px-4 py-2.5 m-0 border-t border-base-content/10 flex justify-between items-center">
+                <span class="text-[11px] font-mono opacity-60">Drücken Sie ESC oder Schließen, um das Fenster zu verlassen.</span>
+                <button type="button" class="btn btn-sm btn-ghost" onclick="window.TerminalEmulator.toggleModal(false)">Schließen</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop">
+            <button>Schließen</button>
+        </form>
+    </dialog>
+
+    <!-- Footer Bar -->
+    <footer class="footer w-full max-w-7xl mx-auto mt-4 bg-base-100 border border-base-200 shadow-sm rounded-2xl px-5 py-3 text-base-content/80 flex flex-wrap justify-between items-center text-xs gap-3">
+        <div>
+            Workbench Web &copy; 2026 OCFL Archive
+        </div>
+        <div class="flex items-center space-x-4 font-mono">
+            <span>Webserver: <strong class="text-primary">{{.ServerAddr}}</strong></span>
+            <span>&bull;</span>
+            <span>Batches: <strong>{{.BatchesFolder}}</strong></span>
+        </div>
+    </footer>
+
+</body>
+</html>
